@@ -11,9 +11,9 @@ Last verified: 2026-06-11 via `GET /api/health`.
 | **Vercel** | Hosts the backend | ✅ Live | Everything |
 | **Supabase** | Database + auth (email OTP) | ✅ Live | Everything |
 | **Cloudflare R2** | Video storage | 🟡 Buckets ready, keys pending | Video upload/playback |
-| **Stripe** | Payments + creator payouts | 🔴 Placeholder (`mock-dev`) | Deposits, payouts |
+| **Stripe** | Payments + creator payouts | 🔴 Placeholder (`mock-dev`) — *payout batch* | Deposits, payouts |
 | **Resend** | Transactional email | 🔴 Placeholder | Email delivery |
-| **Twilio** | SMS / phone verification | 🔴 Placeholder | Phone verify |
+| **Twilio** | SMS / phone verification (fraud gate) | 🔴 Placeholder — *payout batch* | Phone verify |
 | **RapidAPI** | TikTok/IG/YouTube stats sync | 🔴 Placeholder | Social metrics |
 | **Slack** | Internal alerts | 🔴 Placeholder | Ops alerts only |
 | **PostHog** | Analytics | 🔴 Placeholder | Analytics only |
@@ -74,10 +74,12 @@ Payments and creator payouts. Currently `STRIPE_SECRET_KEY=mock-dev`, so the hea
 Transactional email (`RESEND_API_KEY`). **Priority** — note that Supabase email OTP login uses Supabase's own email by default, so sign-in works without this; Resend is for app-sent emails (receipts, notifications).
 **To finish:** sign up at resend.com → verify a sending domain → create an API key → `vercel env add RESEND_API_KEY production`.
 
-## 🔴 Twilio — placeholder
+## 🔴 Twilio — placeholder (do in the payout batch)
 
-SMS phone verification (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `TWILIO_VERIFY_SERVICE_SID`).
+SMS phone verification (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `TWILIO_VERIFY_SERVICE_SID`). Not a login method — it's an **anti-fraud gate** (one-account-per-person) tied to payouts, so it's set up together with Stripe, not before. Not required to use the app today.
 **To finish:** Twilio console → create a Verify service → copy Account SID, Auth Token, Verify Service SID → set the four env vars.
+
+> **Payout batch:** Stripe + Twilio are configured together when enabling real creator cash-out — both are "real accounts + real money" concerns. See `docs/STRIPE_SETUP.md` and `docs/PAYOUTS.md`.
 
 ## 🔴 RapidAPI — placeholder
 
