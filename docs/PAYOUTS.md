@@ -42,9 +42,14 @@ Admins drive the actual paying via `POST /api/admin/creator-post-payments/pay` (
 - **Off-platform payments**: the pay route accepts an optional `offplatform_method` string (e.g. "paypal"). When set, the payment is recorded in the ledger but **no Stripe transfer is made** — the admin settles it manually outside the platform.
 - Payout events post Slack notifications (`lib/notifications/slack/payouts.ts`).
 
-### Dual-region Stripe
+### Country handling (single US Stripe account)
 
-There are two Stripe platform accounts (EU and US). `lib/payments/stripe-router.ts` picks the right one from the creator's `stripe_region` (EU is the default/legacy). Each region has its own keys (`STRIPE_SECRET_KEY` / `STRIPE_SECRET_KEY_US`) and webhook endpoint (`/api/stripe/webhook`, `/api/stripe/webhook-us`).
+Post-migration, **one US Stripe platform account serves all creators worldwide** — all payouts are in USD and creators absorb the FX (`lib/payments/stripe-router.ts`). The EU account, `stripe_region` column, and `/api/stripe/webhook` vs `/api/stripe/webhook-us` split remain only for accounts created before the migration.
+
+Each creator's Connect Express account is created in **their own country** (`lib/payments/stripe-connect.ts`):
+
+- **Full-service countries** (US, GB, CA, CH + 30 EEA countries): full service agreement, transfers + card-payments capabilities.
+- **All other countries**: recipient service agreement — a payouts-only account receiving cross-border USD transfers, converted to local currency by Stripe on payout.
 
 ## 4. Creator-initiated payout (Connect balance → bank)
 
