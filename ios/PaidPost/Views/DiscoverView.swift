@@ -5,9 +5,15 @@
 
 import SwiftUI
 
+/// Navigation targets from the Discover tab.
+enum DiscoverRoute: Hashable {
+    case method(Method)
+    case workspace(brandSlug: String)
+}
+
 struct DiscoverView: View {
     @Environment(AppStore.self) private var store
-    @State private var path: [Method] = []
+    @State private var path: [DiscoverRoute] = []
 
     var body: some View {
         @Bindable var store = store
@@ -15,6 +21,7 @@ struct DiscoverView: View {
             ScrollView {
                 VStack(spacing: 22) {
                     earningsBanner
+                    TodaysTasksCard(path: $path)
                     if !store.hotMethods.isEmpty {
                         hotSection
                     }
@@ -27,11 +34,13 @@ struct DiscoverView: View {
             }
             .scrollIndicators(.hidden)
             .background(Theme.background)
-            .refreshable {
-                try? await Task.sleep(for: .milliseconds(800))
-            }
-            .navigationDestination(for: Method.self) { method in
-                MethodDetailView(method: method)
+            .refreshable { await store.loadJobs(); await store.loadCampaigns(); await store.loadApplications() }
+            .task { await store.loadJobs(); await store.loadCampaigns() }
+            .navigationDestination(for: DiscoverRoute.self) { route in
+                switch route {
+                case .method(let method): MethodDetailView(method: method)
+                case .workspace(let slug): WorkspaceView(brandSlug: slug)
+                }
             }
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.large)
@@ -90,7 +99,7 @@ struct DiscoverView: View {
             ScrollView(.horizontal) {
                 HStack(spacing: 12) {
                     ForEach(store.hotMethods) { method in
-                        NavigationLink(value: method) {
+                        NavigationLink(value: DiscoverRoute.method(method)) {
                             HotMethodCard(method: method)
                         }
                         .buttonStyle(PressableStyle())

@@ -23,8 +23,11 @@ struct Method: Identifiable, Hashable {
     let requirements: [String]
     let exampleHooks: [String]
 
-    var budgetRemaining: Double { totalBudget - claimedBudget }
-    var budgetProgress: Double { min(1, claimedBudget / totalBudget) }
+    var budgetRemaining: Double { max(0, totalBudget - claimedBudget) }
+    var budgetProgress: Double {
+        guard totalBudget > 0 else { return 0 }
+        return min(1, claimedBudget / totalBudget)
+    }
 
     var lengthLabel: String {
         "\(videoLengthSeconds.lowerBound)–\(videoLengthSeconds.upperBound)s"
@@ -143,11 +146,19 @@ struct Notification: Identifiable, Hashable {
 /// State of a creator's application to a Method.
 struct Application: Identifiable, Hashable {
     let id: UUID
-    let method: Method
+    var method: Method
     var status: Status
     let appliedAt: Date
     var earned: Double
     var views: Int
+    /// Backend ids/state for campaign flows (contract signing, workspace).
+    /// Default nil so existing call sites and previews compile unchanged.
+    var backendId: String? = nil
+    var brandSlug: String? = nil
+    var contractAcceptedAt: Date? = nil
+    var contractSignerName: String? = nil
+
+    var contractSigned: Bool { contractAcceptedAt != nil }
 
     enum Status: String {
         case underReview = "Under Review"

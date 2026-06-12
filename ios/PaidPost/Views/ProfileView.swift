@@ -11,8 +11,12 @@ struct ProfileView: View {
 
     enum ProfileDestination: Hashable {
         case notifications
+        case inbox
+        case campaigns
         case settings(SettingsDetailView.Kind)
     }
+
+    @State private var showEditProfile = false
 
     private let socials: [(String, String, Color)] = [
         ("TikTok", "music.note", Theme.coral),
@@ -26,7 +30,9 @@ struct ProfileView: View {
                 VStack(spacing: 22) {
                     header
                     statsRow
+                    campaignsBanner
                     notificationBanner
+                    messagesBanner
                     socialSection
                     settingsSection
                 }
@@ -36,10 +42,21 @@ struct ProfileView: View {
             }
             .scrollIndicators(.hidden)
             .background(Theme.background)
+            .task { await store.loadProfile(); await store.loadNotifications(); await store.loadCampaigns() }
+            .refreshable { await store.loadProfile(); await store.loadNotifications() }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showEditProfile = true
+                    } label: {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         path.append(.notifications)
@@ -66,12 +83,102 @@ struct ProfileView: View {
                 switch destination {
                 case .notifications:
                     NotificationsView()
+                case .inbox:
+                    InboxView()
+                case .campaigns:
+                    CampaignsView()
                 case .settings(let kind):
                     SettingsDetailView(kind: kind)
                 }
             }
+            .sheet(isPresented: $showEditProfile) {
+                EditProfileView()
+                    .presentationDetents([.large])
+            }
         }
         .tint(Theme.accent)
+    }
+
+    private var campaignsBanner: some View {
+        Button {
+            path.append(.campaigns)
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Theme.gold.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "rectangle.stack.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Theme.gold)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Campaigns")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(store.campaigns.isEmpty
+                         ? "Brands you're working with"
+                         : "\(store.campaigns.count) active")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            .padding(14)
+            .background(Theme.surface)
+            .clipShape(.rect(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Theme.stroke, lineWidth: 1)
+            )
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    private var messagesBanner: some View {
+        Button {
+            path.append(.inbox)
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Theme.accent.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Theme.accent)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Messages")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("Chat with brands you work with")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            .padding(14)
+            .background(Theme.surface)
+            .clipShape(.rect(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Theme.stroke, lineWidth: 1)
+            )
+        }
+        .buttonStyle(PressableStyle())
     }
 
     private var header: some View {
@@ -100,18 +207,6 @@ struct ProfileView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
             }
-
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 12, weight: .bold))
-                Text("Verified Creator")
-                    .font(.system(size: 13, weight: .bold))
-            }
-            .foregroundStyle(Theme.accent)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(Theme.accent.opacity(0.12))
-            .clipShape(.capsule)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
@@ -208,9 +303,9 @@ struct ProfileView: View {
                             .font(.system(size: 15, weight: .bold))
                             .foregroundStyle(Theme.textPrimary)
                         Spacer()
-                        Text("Connected")
+                        Text("Soon")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Theme.accent)
+                            .foregroundStyle(Theme.textTertiary)
                     }
                     .methodCard(padding: 12)
                 }

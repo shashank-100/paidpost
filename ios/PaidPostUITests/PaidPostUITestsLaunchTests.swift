@@ -1,13 +1,13 @@
 //
-//  MethodsUITestsLaunchTests.swift
-//  MethodsUITests
+//  PaidPostUITestsLaunchTests.swift
+//  PaidPostUITests
 //
 //  Created by Rork on June 9, 2026.
 //
 
 import XCTest
 
-final class MethodsUITestsLaunchTests: XCTestCase {
+final class PaidPostUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

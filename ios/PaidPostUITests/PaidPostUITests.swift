@@ -1,13 +1,13 @@
 //
-//  MethodsUITests.swift
-//  MethodsUITests
+//  PaidPostUITests.swift
+//  PaidPostUITests
 //
 //  Created by Rork on June 9, 2026.
 //
 
 import XCTest
 
-final class MethodsUITests: XCTestCase {
+final class PaidPostUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

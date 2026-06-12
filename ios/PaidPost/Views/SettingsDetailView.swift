@@ -10,6 +10,15 @@ struct SettingsDetailView: View {
     @Environment(AppStore.self) private var store
     let kind: Kind
 
+    @AppStorage("notify.newMethods") private var notifyNewMethods = true
+    @AppStorage("notify.applicationUpdates") private var notifyApplicationUpdates = true
+    @AppStorage("notify.payouts") private var notifyPayouts = true
+    @AppStorage("notify.milestones") private var notifyMilestones = true
+    @AppStorage("notify.tips") private var notifyTips = false
+
+    @State private var showDeleteConfirm = false
+    @Environment(\.openURL) private var openURL
+
     enum Kind: String, CaseIterable {
         case notifications = "Notifications"
         case payout = "Payout Method"
@@ -95,84 +104,87 @@ struct SettingsDetailView: View {
     // MARK: - Payout
 
     private var payoutContent: some View {
-        VStack(spacing: 14) {
-            payoutMethod(icon: "creditcard.fill", name: "Visa ending in 4242", isDefault: true)
-            payoutMethod(icon: "building.columns.fill", name: "Bank account (Chase)", isDefault: false)
-            payoutMethod(icon: "wallet.pass.fill", name: "Apple Pay", isDefault: false)
-
-            Button {
-                let generator = UIImpactFeedbackGenerator(style: .soft)
-                generator.impactOccurred()
-            } label: {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                    Text("Add payment method")
-                }
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Theme.accent)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Theme.accent.opacity(0.08))
-                .clipShape(.rect(cornerRadius: 14))
-            }
-        }
-    }
-
-    private func payoutMethod(icon: String, name: String, isDefault: Bool) -> some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Theme.accent.opacity(0.12))
-                    .frame(width: 40, height: 40)
-                Image(systemName: icon)
+        VStack(spacing: 16) {
+            VStack(spacing: 12) {
+                Image(systemName: "creditcard")
+                    .font(.system(size: 36, weight: .light))
+                    .foregroundStyle(Theme.textTertiary)
+                Text("No payout method yet")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Theme.accent)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(name)
-                    .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
-                if isDefault {
-                    Text("Default")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
-                }
+                Text("Connecting a payout account is coming soon. You'll be able to add your details and cash out your earnings here.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
             }
-
-            Spacer()
-
-            if isDefault {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(Theme.accent)
-            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 32)
+            .padding(.horizontal, 16)
+            .background(Theme.surface)
+            .clipShape(.rect(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.stroke, lineWidth: 1))
         }
-        .padding(14)
-        .background(Theme.surface)
-        .clipShape(.rect(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Theme.stroke, lineWidth: 1)
-        )
     }
+
 
     // MARK: - Help
 
     private var helpContent: some View {
         VStack(spacing: 14) {
-            helpRow(icon: "envelope.fill", title: "Contact support", detail: "We reply within 2 hours")
-            helpRow(icon: "doc.text.fill", title: "Creator guidelines", detail: "Brand requirements & tips")
-            helpRow(icon: "questionmark.circle.fill", title: "FAQ", detail: "Common questions answered")
-            helpRow(icon: "lock.shield.fill", title: "Privacy policy", detail: "How we handle your data")
-            helpRow(icon: "doc.plaintext.fill", title: "Terms of service", detail: "Updated June 2026")
+            helpRow(icon: "envelope.fill", title: "Contact support", detail: "Email our team",
+                    url: URL(string: "mailto:support@paidpost.app"))
+            helpRow(icon: "lock.shield.fill", title: "Privacy policy", detail: "How we handle your data",
+                    url: URL(string: "https://paidpost.vercel.app/privacy"))
+            helpRow(icon: "doc.plaintext.fill", title: "Terms of service", detail: "The rules of using PaidPost",
+                    url: URL(string: "https://paidpost.vercel.app/terms"))
+
+            Button {
+                Task { await store.signOut() }
+            } label: {
+                accountActionRow(icon: "rectangle.portrait.and.arrow.right", title: "Sign out", tint: Theme.textSecondary)
+            }
+            .buttonStyle(PressableStyle())
+
+            Button(role: .destructive) {
+                showDeleteConfirm = true
+            } label: {
+                accountActionRow(icon: "trash.fill", title: "Delete account", tint: Theme.coral)
+            }
+            .buttonStyle(PressableStyle())
+            .alert("Delete your account?", isPresented: $showDeleteConfirm) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    Task { await store.deleteAccount() }
+                }
+            } message: {
+                Text("This permanently deletes your account, applications, and earnings history. This can't be undone.")
+            }
         }
     }
 
-    private func helpRow(icon: String, title: String, detail: String) -> some View {
+    private func accountActionRow(icon: String, title: String, tint: Color) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(tint)
+                .frame(width: 28)
+            Text(title)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(tint)
+            Spacer()
+        }
+        .padding(16)
+        .background(Theme.surface)
+        .clipShape(.rect(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.stroke, lineWidth: 1))
+    }
+
+    private func helpRow(icon: String, title: String, detail: String, url: URL? = nil) -> some View {
         Button {
             let generator = UIImpactFeedbackGenerator(style: .soft)
             generator.impactOccurred()
+            if let url { openURL(url) }
         } label: {
             HStack(spacing: 14) {
                 Image(systemName: icon)
@@ -208,43 +220,45 @@ struct SettingsDetailView: View {
 
     // MARK: - Toggle data
 
-    private let notificationToggles: [(label: String, detail: String, icon: String, tint: Color, binding: Binding<Bool>)] = [
-        (
-            "New methods",
-            "When brands post new opportunities",
-            "sparkles",
-            Theme.coral,
-            Binding.constant(true)
-        ),
-        (
-            "Application updates",
-            "Approvals, rejections, and review status",
-            "checkmark.seal.fill",
-            Theme.electric,
-            Binding.constant(true)
-        ),
-        (
-            "Payouts",
-            "When earnings are deposited",
-            "dollarsign.circle.fill",
-            Theme.accent,
-            Binding.constant(true)
-        ),
-        (
-            "Milestones",
-            "View count and earnings milestones",
-            "trophy.fill",
-            Theme.gold,
-            Binding.constant(true)
-        ),
-        (
-            "Tips & tricks",
-            "Creator guides to boost your reach",
-            "lightbulb.fill",
-            Theme.gold,
-            Binding.constant(false)
-        )
-    ]
+    private var notificationToggles: [(label: String, detail: String, icon: String, tint: Color, binding: Binding<Bool>)] {
+        [
+            (
+                "New methods",
+                "When brands post new opportunities",
+                "sparkles",
+                Theme.coral,
+                $notifyNewMethods
+            ),
+            (
+                "Application updates",
+                "Approvals, rejections, and review status",
+                "checkmark.seal.fill",
+                Theme.electric,
+                $notifyApplicationUpdates
+            ),
+            (
+                "Payouts",
+                "When earnings are deposited",
+                "dollarsign.circle.fill",
+                Theme.accent,
+                $notifyPayouts
+            ),
+            (
+                "Milestones",
+                "View count and earnings milestones",
+                "trophy.fill",
+                Theme.gold,
+                $notifyMilestones
+            ),
+            (
+                "Tips & tricks",
+                "Creator guides to boost your reach",
+                "lightbulb.fill",
+                Theme.gold,
+                $notifyTips
+            )
+        ]
+    }
 }
 
 #Preview {

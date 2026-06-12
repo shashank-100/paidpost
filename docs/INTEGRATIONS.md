@@ -10,9 +10,9 @@ Last verified: 2026-06-11 via `GET /api/health`.
 |---|---|---|---|
 | **Vercel** | Hosts the backend | ✅ Live | Everything |
 | **Supabase** | Database + auth (email OTP) | ✅ Live | Everything |
-| **Cloudflare R2** | Video storage | 🟡 Buckets ready, keys pending | Video upload/playback |
+| **Cloudflare R2** | Video storage | ✅ Live (buckets + keys set, seeded & playback-verified) | Video upload/playback |
 | **Stripe** | Payments + creator payouts | 🔴 Placeholder (`mock-dev`) — *payout batch* | Deposits, payouts |
-| **Resend** | Transactional email | 🔴 Placeholder | Email delivery |
+| **Resend** | Transactional email | 🔴 Placeholder — *deferred* | Email delivery |
 | **Twilio** | SMS / phone verification (fraud gate) | 🔴 Placeholder — *payout batch* | Phone verify |
 | **RapidAPI** | TikTok/IG/YouTube stats sync | 🔴 Placeholder | Social metrics |
 | **Slack** | Internal alerts | 🔴 Placeholder | Ops alerts only |

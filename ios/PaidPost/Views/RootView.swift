@@ -34,12 +34,20 @@ struct RootView: View {
                 if !store.hasOnboarded {
                     OnboardingView()
                         .transition(.opacity.combined(with: .scale(scale: 1.05)))
+                } else if !store.isSignedIn {
+                    SignInView()
+                        .transition(.opacity)
+                } else if store.needsProfileSetup {
+                    ProfileSetupView()
+                        .transition(.opacity)
                 } else {
                     mainApp
                         .transition(.opacity)
                 }
             }
             .animation(.spring(response: 0.5, dampingFraction: 0.8), value: store.hasOnboarded)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: store.isSignedIn)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: store.needsProfileSetup)
         }
     }
 

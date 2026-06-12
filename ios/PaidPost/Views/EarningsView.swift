@@ -7,7 +7,9 @@ import SwiftUI
 
 struct EarningsView: View {
     @Environment(AppStore.self) private var store
-    @State private var showCashOut = false
+
+    @State private var connectURL: IdentifiableURL?
+    @State private var showPayoutConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -16,6 +18,9 @@ struct EarningsView: View {
                     balanceCard
                     statsRow
                     weeklyChart
+                    if !store.transactions.isEmpty {
+                        ledgerSection
+                    }
                     activitySection
                 }
                 .padding(.horizontal, 20)
@@ -24,20 +29,28 @@ struct EarningsView: View {
             }
             .scrollIndicators(.hidden)
             .background(Theme.background)
+            .task { await store.loadWallet(); await store.loadApplications() }
+            .refreshable { await store.loadWallet(); await store.loadApplications() }
             .navigationTitle("Earnings")
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
         .tint(Theme.accent)
-        .alert("Cash out $\(Int(store.availableBalance).formatted())?", isPresented: $showCashOut) {
+        .sheet(item: $connectURL) { item in
+            SafariView(url: item.url)
+        }
+        .alert("Cash out $\(Int(store.availableBalance).formatted())?",
+               isPresented: $showPayoutConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Cash out") {
-                let generator = UINotificationFeedbackGenerator()
-                generator.notificationOccurred(.success)
-                withAnimation { store.cashOut() }
+                Task {
+                    if await store.requestPayout() {
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    }
+                }
             }
         } message: {
-            Text("Funds arrive instantly to your linked account.")
+            Text("Funds are sent to your linked Stripe account.")
         }
     }
 
@@ -51,25 +64,13 @@ struct EarningsView: View {
                 .foregroundStyle(Theme.background)
                 .contentTransition(.numericText())
 
-            Button {
-                let generator = UIImpactFeedbackGenerator(style: .medium)
-                generator.impactOccurred()
-                showCashOut = true
-            } label: {
-                HStack {
-                    Image(systemName: "bolt.fill")
-                    Text("Cash out instantly")
-                }
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(Theme.accent)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Theme.background)
-                .clipShape(.capsule)
+            payoutButton
+
+            if let err = store.payoutError {
+                Text(err)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.background.opacity(0.85))
             }
-            .buttonStyle(PressableStyle())
-            .disabled(store.availableBalance <= 0)
-            .opacity(store.availableBalance <= 0 ? 0.5 : 1)
         }
         .padding(22)
         .background(
@@ -81,6 +82,67 @@ struct EarningsView: View {
         )
         .clipShape(.rect(cornerRadius: Theme.cardCorner))
         .shadow(color: Theme.accentGlow, radius: 20, y: 8)
+    }
+
+    /// Three states: payouts enabled → real cash-out; account exists but not
+    /// finished → "finish setup"; no account → "set up payouts".
+    @ViewBuilder
+    private var payoutButton: some View {
+        if store.payoutsEnabled {
+            Button {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                showPayoutConfirm = true
+            } label: {
+                payoutLabel(icon: "bolt.fill", text: "Cash out instantly")
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(store.availableBalance <= 0 || store.payoutInProgress)
+            .opacity(store.availableBalance <= 0 ? 0.5 : 1)
+        } else {
+            Button {
+                Task {
+                    if let url = await store.startPayoutSetup() {
+                        connectURL = IdentifiableURL(url: url)
+                    }
+                }
+            } label: {
+                if store.payoutInProgress {
+                    ProgressView().tint(Theme.accent)
+                        .frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .background(Theme.background).clipShape(.capsule)
+                } else {
+                    payoutLabel(
+                        icon: "creditcard.fill",
+                        text: store.stripeConnected ? "Finish payout setup" : "Set up payouts"
+                    )
+                }
+            }
+            .buttonStyle(PressableStyle())
+        }
+    }
+
+    private func payoutLabel(icon: String, text: String) -> some View {
+        HStack {
+            Image(systemName: icon)
+            Text(text)
+        }
+        .font(.system(size: 16, weight: .bold))
+        .foregroundStyle(Theme.accent)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(Theme.background)
+        .clipShape(.capsule)
+    }
+
+    private var ledgerSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Recent transactions")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Theme.textPrimary)
+            ForEach(store.transactions) { tx in
+                TransactionRow(tx: tx)
+            }
+        }
     }
 
     private var statsRow: some View {
@@ -218,6 +280,50 @@ private struct ApplicationRow: View {
                     .foregroundStyle(application.earned > 0 ? Theme.accent : Theme.textSecondary)
                 if application.views > 0 {
                     Text("\(application.views.shortFormatted) views")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+            }
+        }
+        .methodCard(padding: 14)
+    }
+}
+
+private struct TransactionRow: View {
+    let tx: TransactionDTO
+
+    private var amount: Double { tx.amount ?? 0 }
+    private var isCredit: Bool { amount >= 0 }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill((isCredit ? Theme.accent : Theme.coral).opacity(0.18))
+                Image(systemName: isCredit ? "arrow.down.left" : "arrow.up.right")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(isCredit ? Theme.accent : Theme.coral)
+            }
+            .frame(width: 44, height: 44)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(tx.description ?? (tx.transaction_type ?? "Transaction").capitalized)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                if let status = tx.stripe_transfer_status {
+                    Text(status.capitalized)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 3) {
+                Text("\(isCredit ? "+" : "-")$\(abs(amount), specifier: "%.2f")")
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(isCredit ? Theme.accent : Theme.textSecondary)
+                if let at = BackendDate.parse(tx.created_at) {
+                    Text(at.relativeFormatted)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Theme.textTertiary)
                 }

@@ -75,7 +75,7 @@ struct MethodCard: View {
                 Text(method.brand)
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
-                Text("Verified partner")
+                Text("Paid partnership")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Theme.textTertiary)
             }
