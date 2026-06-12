@@ -86,6 +86,24 @@ final class AppStore {
     func verifySignInCode(email: String, code: String) async -> Bool {
         authInProgress = true; authError = nil
         defer { authInProgress = false }
+
+        // App Review path: the reviewer signs in with the fixed test account.
+        // That mailbox can't receive a live OTP, so route it through the
+        // backend's review bypass instead of Supabase OTP verification.
+        if email.lowercased() == APIConfig.TestAccount.email.lowercased(),
+           code == APIConfig.TestAccount.code {
+            do {
+                try await APIClient.shared.authenticateTestBypass()
+                isSignedIn = true
+                needsProfileSetup = false
+                await loadAll()
+                return true
+            } catch {
+                authError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+                return false
+            }
+        }
+
         do {
             let session = try await AuthAPI.verifyCode(email: email, code: code)
             await APIClient.shared.setSession(session)

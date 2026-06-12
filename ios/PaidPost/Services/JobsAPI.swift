@@ -16,6 +16,8 @@ struct JobDTO: Decodable {
     let job_title: String?
     let description: String?
     let budget_per_creator: Double?
+    /// Pay-per-1k-views for CPM campaigns. Used when there's no flat per-post pay.
+    let cpm_rate: Double?
     let brand_name: String?
     let brand_logo: String?
     let tags: [String]?
@@ -54,7 +56,10 @@ extension JobDTO {
     /// views render unchanged.
     func toMethod() -> Method {
         let methodId: UUID = UUID(uuidString: id) ?? UUID()
-        let pay: Double = budget_per_creator ?? 0
+        // Flat per-post pay when set; otherwise fall back to the CPM rate so the
+        // card never shows "$0" for a real (pay-per-view) opportunity.
+        let flat = budget_per_creator ?? 0
+        let pay: Double = flat > 0 ? flat : (cpm_rate ?? 0)
         let resolvedCategory: Method.Category = Self.category(for: tags ?? [])
         let length: ClosedRange<Int> = 20...40
         let reqs: [String] = Self.requirements(from: content_guidelines)
@@ -63,7 +68,7 @@ extension JobDTO {
             id: methodId,
             brand: brand_name ?? "Brand",
             title: job_title ?? "Untitled opportunity",
-            tagline: description ?? "",
+            tagline: Self.cleanText(description),
             payPerPost: pay,
             totalBudget: 0,
             claimedBudget: 0,
@@ -90,7 +95,25 @@ extension JobDTO {
         guard let guidelines, !guidelines.isEmpty else { return [] }
         return guidelines
             .split(whereSeparator: { $0 == "\n" || $0 == "•" })
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { cleanText($0.trimmingCharacters(in: .whitespaces)) }
             .filter { !$0.isEmpty }
+    }
+
+    /// Strips common markdown so backend copy renders as plain text in the UI
+    /// (e.g. "## Swipe Right" → "Swipe Right", "**bold**" → "bold").
+    static func cleanText(_ raw: String?) -> String {
+        guard var s = raw else { return "" }
+        // Use the first non-empty line as the tagline.
+        if let firstLine = s.split(separator: "\n").first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) {
+            s = String(firstLine)
+        }
+        s = s.replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "__", with: "")
+            .replacingOccurrences(of: "`", with: "")
+        // Drop leading markdown markers (#, >, -, *) and surrounding whitespace.
+        while let f = s.first, "#>-*".contains(f) || f == " " {
+            s.removeFirst()
+        }
+        return s.trimmingCharacters(in: .whitespaces)
     }
 }
