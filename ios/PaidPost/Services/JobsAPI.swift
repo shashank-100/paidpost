@@ -30,7 +30,7 @@ struct JobDTO: Decodable {
 enum JobsAPI {
     /// Fetches the feed. When `countryISO` is set, the backend returns only
     /// public + country_restricted jobs targeting that country (matches
-    /// 8x-mobile's `country_iso` filter). Defaults to the device region so a
+    /// the reference `country_iso` filter). Defaults to the device region so a
     /// creator sees location-relevant gigs; pass nil for the global feed.
     static func fetchJobs(countryISO: String? = deviceRegion) async throws -> [Method] {
         var query: [URLQueryItem] = []

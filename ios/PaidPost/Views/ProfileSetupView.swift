@@ -4,7 +4,7 @@
 //
 //  First-run guided profile setup shown after sign-in when the creator has no
 //  display name yet. Steps: name → date of birth (18+) → location → photo.
-//  Mirrors 8x-mobile's profile_setup flow; writes via PATCH creator/profile.
+//  Mirrors the reference profile_setup flow; writes via PATCH creator/profile.
 //
 
 import SwiftUI

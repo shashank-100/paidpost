@@ -3,7 +3,7 @@
 //  PaidPost
 //
 //  Slot-based audition-video upload for a campaign: pick a video → presigned
-//  R2 PUT → save slot → submit for AI screening. Mirrors 8x-mobile's upload
+//  R2 PUT → save slot → submit for AI screening. Mirrors the reference upload
 //  screen. Requires R2 keys on the backend.
 //
 

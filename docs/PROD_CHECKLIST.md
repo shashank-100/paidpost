@@ -1,12 +1,42 @@
 # PaidPost — Production Checklist
 
-_Last updated: 2026-06-11_
+_Last updated: 2026-06-12_
 
-Stack: SwiftUI iOS app (`ios/Methods.xcodeproj`) → Next.js backend (`shashank-100/paidpost-backend`, deployed on personal Vercel) → Supabase project `paidpost` (`jmlnyuwlrbxhxckuuhxw`).
+Stack: SwiftUI iOS app (`ios/PaidPost.xcodeproj`) → Next.js backend (`shashank-100/paidpost-backend`, deployed on personal Vercel) → Supabase project `paidpost` (`jmlnyuwlrbxhxckuuhxw`).
 
-- **API base:** `https://paidpost-shashank100s-projects.vercel.app/api/mobile`
-- **Vercel project:** `shashank100s-projects/paidpost` (git push to `main` auto-deploys)
+- **API base:** `https://paidpost.vercel.app/api/mobile`
+- **Vercel project:** `shashank100s-projects/paidpost` (serves the `paidpost.vercel.app` alias)
 - **DB:** Supabase `paidpost`, region East US
+
+---
+
+## 📌 Session update — 2026-06-12
+
+### ✅ Done this session
+- **8x ownership fully scrubbed** — every functional reference to the previous owner (8x) removed from both repos (0 left in executable code):
+  - Disabled Sentry (DSN was 8x's org); gated Google Analytics + TikTok pixel; disabled Meta pixel — all three were hardcoded to 8x's accounts and **leaking prod pageviews/errors to 8x** until this fix.
+  - Rebranded domains/emails/copy → PaidPost / `paidpost.vercel.app`; email `from:` + intro-video CDN now env-driven; scraper UA `8xBot`→`PaidPostBot`.
+  - Deep-link configs (AASA `appID`, Android `PACKAGE_NAME`, `eightx://` Stripe return scheme → `paidpost://`) and the version-check App Store URL repointed to PaidPost.
+  - iOS Swift comments referencing `8x-mobile` neutralized.
+- **iOS app BUILDS** (`xcodebuild`, iPhone 16 sim, BUILD SUCCEEDED) — first time compile-verified.
+- **Payouts moved off-native** — Earnings screen is now **view-only** (no native "Cash out"/Stripe-Connect buttons → Apple-safe). Payout plumbing retained but dormant; cash-out happens on web.
+- **Cloudflare R2 live + verified** — buckets created, keys set, seeded with sample videos, public playback confirmed, backend signs R2 URLs.
+- **Backend redeployed clean** — `paidpost.vercel.app` healthy (DB ok, auth ok); web UI returns 404 (pure API server) and `/api/admin/*` returns 401 (protected).
+- **Notifications routed to Telegram** (code written; Slack delivery kept commented for later migration).
+
+### 🔜 Next — needs YOU (Apple account / external)
+- [ ] **Apple Team ID** → set `APPLE_TEAM_ID` env (AASA deep-links use a `TEAMID` placeholder); also needed for Xcode signing.
+- [ ] **Xcode**: set signing team → archive → upload build to App Store Connect.
+- [ ] **App Store Connect**: create app record → get real App Store ID → replace `id0000000000` in `lib/mobile/handlers.ts`.
+- [ ] **Screenshots** (6.5" iPhone) — needs the app running; can be captured from the simulator.
+- [ ] **Privacy Policy + Terms URLs** (Apple requires a privacy policy link) and reachable Support/Marketing URLs.
+- [ ] **Supabase Site URL** → change from the dead `paidpost-shashank100s-projects.vercel.app` to `paidpost.vercel.app` (fixes magic-link 404).
+- [ ] Use the **softened App Store description** (cash-out is web-only now — don't claim "cash out from your phone").
+
+### 🔜 Next — deferred batches (do together when ready)
+- [ ] **Payout batch**: Stripe (+US) keys, Twilio (phone-verify fraud gate), RapidAPI (social-stats sync) — all wired to real earnings/cash-out.
+- [ ] **Resend** email — OTP is throttled to ~2/hr without it (matters for real users + reviewer).
+- [ ] **Telegram** — commit + set `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`.
 
 ---
 

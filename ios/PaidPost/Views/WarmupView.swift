@@ -3,7 +3,7 @@
 //  PaidPost
 //
 //  Evidence-based warmup: add a daily niche-video URL and upload screen-time
-//  screenshots for due windows. Mirrors 8x-mobile's warmup screen.
+//  screenshots for due windows. Mirrors the reference warmup screen.
 //  Requires R2 keys on the backend (screenshots upload via presigned PUT).
 //
 

@@ -3,7 +3,7 @@
 //  Methods
 //
 //  Per-brand campaign hub: brief, contract, test videos, and posted content.
-//  Sections unlock based on managed-creator status, mirroring 8x-mobile's
+//  Sections unlock based on managed-creator status, mirroring the reference
 //  phase-aware workspace.
 //
 

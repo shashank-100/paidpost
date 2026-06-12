@@ -3,7 +3,7 @@
 //  Methods
 //
 //  Per-brand campaign workspace, contract signing, managed-status, and the
-//  brief/reference-video data. DTO shapes mirror the 8x-mobile clients
+//  brief/reference-video data. DTO shapes mirror the the reference app clients
 //  (lib/api/workspace.ts, creator.ts, applications.ts) — same backend.
 //
 
@@ -56,7 +56,7 @@ struct WorkspaceDTO: Decodable {
         let website: String?
     }
 
-    /// Statuses that unlock brief / contract / content tabs (from 8x-mobile
+    /// Statuses that unlock brief / contract / content tabs (from the reference app
     /// CONTENT_ACCESSIBLE_STATUSES).
     static let contentAccessibleStatuses: Set<String> =
         ["accepted", "warming_up", "active", "ghosted", "unclear"]
@@ -193,7 +193,7 @@ enum WorkspaceAPI {
     }
 
     /// Full audition-video upload: get a presigned R2 URL → PUT the file
-    /// straight to R2 → save the slot record. Mirrors 8x-mobile's
+    /// straight to R2 → save the slot record. Mirrors the reference
     /// `uploadCreatorVideo`. `mimeType` is one of video/mp4|quicktime|webm.
     @discardableResult
     static func uploadVideo(

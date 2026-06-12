@@ -2,7 +2,7 @@
 //  ContractView.swift
 //  Methods
 //
-//  Read + e-sign a campaign contract. Mirrors 8x-mobile's contract screen:
+//  Read + e-sign a campaign contract. Mirrors the reference contract screen:
 //  POST applications/{id}/contract/sign { signerName }.
 //
 

@@ -3,7 +3,7 @@
 //  PaidPost
 //
 //  All brands the creator is working with, grouped by stage. Mirrors
-//  8x-mobile's campaigns list + groupCampaigns logic. Each row opens the
+//  the reference campaigns list + groupCampaigns logic. Each row opens the
 //  per-brand WorkspaceView.
 //
 
@@ -84,7 +84,7 @@ struct CampaignsView: View {
         .contentMargins(.horizontal, 0)
     }
 
-    /// Ports 8x-mobile's groupCampaigns() status buckets.
+    /// Ports the reference groupCampaigns() status buckets.
     private var filtered: [ManagedStatusDTO.ManagedBrandDTO] {
         let brands = store.campaigns
         switch filter {

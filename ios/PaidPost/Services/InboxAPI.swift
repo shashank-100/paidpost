@@ -2,7 +2,7 @@
 //  InboxAPI.swift
 //  Methods
 //
-//  Brand↔creator message threads. Mirrors the 8x-mobile inbox:
+//  Brand↔creator message threads. Mirrors the the reference app inbox:
 //  one thread per brand plus a "system" thread for official messages.
 //
 

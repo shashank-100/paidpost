@@ -215,7 +215,7 @@ enum CreatorAPI {
     // MARK: Payouts
 
     /// Stripe Connect onboarding link to open in Safari. Return/refresh land
-    /// on our web URL rather than the 8x app's `eightx://` scheme.
+    /// on our web URL rather than a custom app URL scheme.
     static func createStripeConnectLink() async throws -> URL {
         struct Body: Encodable { let return_url: String; let refresh_url: String }
         struct Result: Decodable { let url: String? }
