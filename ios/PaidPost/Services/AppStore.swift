@@ -296,6 +296,10 @@ final class AppStore {
 
     // MARK: - Payouts
 
+    // NOTE: Payouts were moved to the web for v1.0 (App Store policy — no native
+    // financial transactions). The two methods below are retained but NOT called
+    // by any view; re-wire them when in-app/web payout UI is added back.
+
     /// Fetches a Stripe Connect onboarding link to open in the browser.
     func startPayoutSetup() async -> URL? {
         payoutError = nil

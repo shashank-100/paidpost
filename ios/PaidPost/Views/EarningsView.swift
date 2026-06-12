@@ -8,9 +8,6 @@ import SwiftUI
 struct EarningsView: View {
     @Environment(AppStore.self) private var store
 
-    @State private var connectURL: IdentifiableURL?
-    @State private var showPayoutConfirm = false
-
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -36,22 +33,6 @@ struct EarningsView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
         .tint(Theme.accent)
-        .sheet(item: $connectURL) { item in
-            SafariView(url: item.url)
-        }
-        .alert("Cash out $\(Int(store.availableBalance).formatted())?",
-               isPresented: $showPayoutConfirm) {
-            Button("Cancel", role: .cancel) {}
-            Button("Cash out") {
-                Task {
-                    if await store.requestPayout() {
-                        UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    }
-                }
-            }
-        } message: {
-            Text("Funds are sent to your linked Stripe account.")
-        }
     }
 
     private var balanceCard: some View {
@@ -64,13 +45,12 @@ struct EarningsView: View {
                 .foregroundStyle(Theme.background)
                 .contentTransition(.numericText())
 
-            payoutButton
-
-            if let err = store.payoutError {
-                Text(err)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.background.opacity(0.85))
-            }
+            // Payouts are managed on the web. The app shows balance read-only;
+            // creators cash out through the PaidPost web dashboard.
+            Text("Manage payouts and cash out from your PaidPost dashboard on the web.")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.background.opacity(0.8))
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(22)
         .background(
@@ -82,56 +62,6 @@ struct EarningsView: View {
         )
         .clipShape(.rect(cornerRadius: Theme.cardCorner))
         .shadow(color: Theme.accentGlow, radius: 20, y: 8)
-    }
-
-    /// Three states: payouts enabled → real cash-out; account exists but not
-    /// finished → "finish setup"; no account → "set up payouts".
-    @ViewBuilder
-    private var payoutButton: some View {
-        if store.payoutsEnabled {
-            Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                showPayoutConfirm = true
-            } label: {
-                payoutLabel(icon: "bolt.fill", text: "Cash out instantly")
-            }
-            .buttonStyle(PressableStyle())
-            .disabled(store.availableBalance <= 0 || store.payoutInProgress)
-            .opacity(store.availableBalance <= 0 ? 0.5 : 1)
-        } else {
-            Button {
-                Task {
-                    if let url = await store.startPayoutSetup() {
-                        connectURL = IdentifiableURL(url: url)
-                    }
-                }
-            } label: {
-                if store.payoutInProgress {
-                    ProgressView().tint(Theme.accent)
-                        .frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(Theme.background).clipShape(.capsule)
-                } else {
-                    payoutLabel(
-                        icon: "creditcard.fill",
-                        text: store.stripeConnected ? "Finish payout setup" : "Set up payouts"
-                    )
-                }
-            }
-            .buttonStyle(PressableStyle())
-        }
-    }
-
-    private func payoutLabel(icon: String, text: String) -> some View {
-        HStack {
-            Image(systemName: icon)
-            Text(text)
-        }
-        .font(.system(size: 16, weight: .bold))
-        .foregroundStyle(Theme.accent)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(Theme.background)
-        .clipShape(.capsule)
     }
 
     private var ledgerSection: some View {

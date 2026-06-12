@@ -7,7 +7,17 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppStore.self) private var store
-    @State private var selectedTab: Tab = .discover
+    @State private var selectedTab: Tab = RootView.initialTab
+
+    /// Screenshot/UI-test only: open a specific tab via "-uiTestTab <n>".
+    private static var initialTab: Tab {
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-uiTestTab"), i + 1 < args.count,
+           let raw = Int(args[i + 1]), let tab = Tab(rawValue: raw) {
+            return tab
+        }
+        return .discover
+    }
 
     enum Tab: Int, CaseIterable {
         case discover, earnings, profile
