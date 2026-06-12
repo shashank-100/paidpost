@@ -132,8 +132,8 @@ struct SettingsDetailView: View {
 
     private var helpContent: some View {
         VStack(spacing: 14) {
-            helpRow(icon: "envelope.fill", title: "Contact support", detail: "Email our team",
-                    url: URL(string: "mailto:support@paidpost.app"))
+            helpRow(icon: "questionmark.circle.fill", title: "Help & support", detail: "Guides and answers",
+                    url: URL(string: "https://paidpost.vercel.app/support"))
             helpRow(icon: "lock.shield.fill", title: "Privacy policy", detail: "How we handle your data",
                     url: URL(string: "https://paidpost.vercel.app/privacy"))
             helpRow(icon: "doc.plaintext.fill", title: "Terms of service", detail: "The rules of using PaidPost",
