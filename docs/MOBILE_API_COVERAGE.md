@@ -123,6 +123,6 @@ Legend: ✅ used by app · ⚪️ not used · ⚠️ should consider adding
   unless you decide to build them.
 
 ## Bottom line
-- **Used:** ~30 endpoints — all core flows work (verified by `tests/test_mobile_api.py`).
+- **Used:** ~30 endpoints — all core flows work (verified by `tests/functionaltest/test_mobile_api.py`).
 - **Must add before review:** report/block UI (uses existing `creator/report-post`).
 - **Optional later:** push, full payouts, course/tasks.
