@@ -15,7 +15,7 @@ Two seeded test accounts are used:
 Tokens are minted directly via Supabase admin (magic-link → verify), so no
 email delivery is needed.
 
-Usage:  python3 scripts/test-mobile-api.py
+Usage:  python3 tests/test_mobile_api.py
 """
 
 import json
