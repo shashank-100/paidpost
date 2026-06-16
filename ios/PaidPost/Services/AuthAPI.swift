@@ -80,6 +80,54 @@ nonisolated enum AuthAPI {
         return try self.session(from: payload, email: session.email)
     }
 
+    // MARK: - Social sign-in (Apple / Google)
+
+    /// Provider for `signInWithIdToken`. Raw value matches Supabase's expected
+    /// `provider` field for the `id_token` grant.
+    enum SocialProvider: String {
+        case apple
+        case google
+    }
+
+    /// Exchanges a provider-issued `id_token` (from native Sign in with Apple or
+    /// Google Sign-In) for a Supabase session. This is the single backend call
+    /// both social buttons funnel into — no email, no OTP, no magic link.
+    ///
+    /// - Parameters:
+    ///   - provider: `.apple` or `.google`.
+    ///   - idToken: the signed JWT from the provider SDK.
+    ///   - nonce: the raw (unhashed) nonce, required by Apple when the request
+    ///            was made with a hashed nonce; pass nil for Google.
+    static func signInWithIdToken(
+        provider: SocialProvider,
+        idToken: String,
+        nonce: String? = nil
+    ) async throws -> AuthSession {
+        var body: [String: Any] = ["provider": provider.rawValue, "id_token": idToken]
+        if let nonce { body["nonce"] = nonce }
+        let (status, payload) = try await supabaseAuth("token?grant_type=id_token", json: body)
+        guard (200...299).contains(status) else {
+            throw AuthError.server(
+                errorMessage(from: payload) ?? "Couldn't sign in. Please try again."
+            )
+        }
+        // The provider's email is inside the returned session/user; decode it
+        // from the token response rather than requiring it as a parameter.
+        return try session(from: payload, email: emailFromTokenResponse(payload) ?? "")
+    }
+
+    /// Pulls the user's email out of a Supabase token response (the `user`
+    /// object), used after social sign-in where we don't know the email upfront.
+    private static func emailFromTokenResponse(_ data: Data) -> String? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        if let user = obj["user"] as? [String: Any], let email = user["email"] as? String {
+            return email
+        }
+        return obj["email"] as? String
+    }
+
     // MARK: - Internals
 
     private static func supabaseAuth(_ path: String, json: [String: Any]) async throws -> (Int, Data) {
