@@ -63,11 +63,80 @@ struct SignInView: View {
                     .foregroundStyle(Theme.textTertiary)
                 }
 
+                if step == .email {
+                    orDivider
+                    socialButtons
+                }
+
                 Spacer()
             }
             .padding(.horizontal, 28)
         }
         .onAppear { focused = true }
+    }
+
+    private var orDivider: some View {
+        HStack(spacing: 12) {
+            Rectangle().fill(Theme.stroke).frame(height: 1)
+            Text("or").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.textTertiary)
+            Rectangle().fill(Theme.stroke).frame(height: 1)
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var socialButtons: some View {
+        // Sign in with Apple (native).
+        Button {
+            Task { await handleApple() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "apple.logo")
+                Text("Continue with Apple").font(.system(size: 17, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(Color.black)
+            .clipShape(.rect(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.stroke, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+
+        // Continue with Google.
+        Button {
+            Task { await handleGoogle() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "g.circle.fill")
+                Text("Continue with Google").font(.system(size: 17, weight: .semibold))
+            }
+            .foregroundStyle(Theme.textPrimary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(Theme.surface)
+            .clipShape(.rect(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.stroke, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func handleApple() async {
+        do {
+            let result = try await AppleSignInCoordinator().signIn()
+            _ = await store.signInWithIdToken(provider: .apple, idToken: result.idToken, nonce: result.rawNonce)
+        } catch is CancellationError {
+            // user cancelled — no-op
+        } catch {
+            store.authError = error.localizedDescription
+        }
+    }
+
+    private func handleGoogle() async {
+        // Google Sign-In SDK wiring is pending (needs the GoogleSignIn package +
+        // iOS client id). Until then, surface a clear message instead of failing
+        // silently. Replace this body with the GIDSignIn flow once the SDK is added.
+        store.authError = "Google sign-in is being set up. Please use Apple or email for now."
     }
 
     private var emailField: some View {

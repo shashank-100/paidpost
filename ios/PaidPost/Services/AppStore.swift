@@ -116,6 +116,23 @@ final class AppStore {
         }
     }
 
+    /// Completes sign-in from a provider id_token (Sign in with Apple / Google).
+    /// Exchanges it for a Supabase session — no email, OTP, or magic link.
+    func signInWithIdToken(provider: AuthAPI.SocialProvider, idToken: String, nonce: String? = nil) async -> Bool {
+        authInProgress = true; authError = nil
+        defer { authInProgress = false }
+        do {
+            let session = try await AuthAPI.signInWithIdToken(provider: provider, idToken: idToken, nonce: nonce)
+            await APIClient.shared.setSession(session)
+            isSignedIn = true
+            await loadAll()
+            return true
+        } catch {
+            authError = (error as? AuthAPI.AuthError)?.errorDescription ?? error.localizedDescription
+            return false
+        }
+    }
+
     func signOut() async {
         await APIClient.shared.signOut()
         isSignedIn = false
