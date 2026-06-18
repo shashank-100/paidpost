@@ -2,7 +2,7 @@
 
 Live status of every external service the backend depends on, and exactly how to finish the ones that aren't done. Backend is deployed at **https://paidpost.vercel.app** (alias the iOS app points at).
 
-Last verified: 2026-06-11 via `GET /api/health`.
+Last verified: 2026-06-18 (Stripe row updated — test keys set; Connect/webhook pending).
 
 ## Status at a glance
 
@@ -10,8 +10,8 @@ Last verified: 2026-06-11 via `GET /api/health`.
 |---|---|---|---|
 | **Vercel** | Hosts the backend | ✅ Live | Everything |
 | **Supabase** | Database + auth (email OTP) | ✅ Live | Everything |
-| **Cloudflare R2** | Video storage | ✅ Live (buckets + keys set, seeded & playback-verified) | Video upload/playback |
-| **Stripe** | Payments + creator payouts | 🔴 Placeholder (`mock-dev`) — *payout batch* | Deposits, payouts |
+| **Cloudflare R2** | Video storage | ✅ Live (buckets + S3 API keys set) | Video upload/playback |
+| **Stripe** | Payments + creator payouts | 🟡 Test keys set, deployed; Connect + webhook pending | Deposits, payouts |
 | **Resend** | Transactional email | 🔴 Placeholder — *deferred* | Email delivery |
 | **Twilio** | SMS / phone verification (fraud gate) | 🔴 Placeholder — *payout batch* | Phone verify |
 | **RapidAPI** | TikTok/IG/YouTube stats sync | 🔴 Placeholder | Social metrics |
@@ -40,34 +40,35 @@ Legend: ✅ working · 🟡 partially configured · 🔴 placeholder (feature er
 - Dashboard: https://supabase.com/dashboard/project/jmlnyuwlrbxhxckuuhxw
 - DB password: `~/Desktop/GitHub/8x/.paidpost-db-password` (gitignored)
 
-## 🟡 Cloudflare R2 — buckets ready, API keys pending
+## ✅ Cloudflare R2 — DONE (verified 2026-06-18)
 
 Storage for creator videos (`lib/storage/r2.ts`, used by `/api/creator/videos/*` and mobile handlers).
 
-**Done:**
 - Account ID: `0dee0ac43d70ed3a42654a4cf4960571`
-- Buckets created: `paidpost-videos` (all videos) + `intro-videos` (hardcoded in code)
-- Public URL enabled: `https://pub-22b7648b8965454293478b8aa8831f44.r2.dev`
-- Env set: `R2_ACCOUNT_ID`, `R2_BUCKET_NAME=paidpost-videos`, `R2_MANAGED_CREATORS_BUCKET=paidpost-videos`, `R2_PUBLIC_URL`
+- Buckets: `paidpost-videos` (all videos) + `intro-videos` (hardcoded in code)
+- Public URL: `https://pub-22b7648b8965454293478b8aa8831f44.r2.dev`
+- All 6 env vars set in Vercel Production: `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_MANAGED_CREATORS_BUCKET`, `R2_PUBLIC_URL`, **`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`** (S3 API keys — confirmed present).
 
-**Remaining — set the S3 API keys and redeploy:**
-An R2 API token was created (dashboard → R2 → API Tokens → "Object Read & Write"). Set its credentials:
-```bash
-cd ~/Desktop/GitHub/8x   # backend repo, linked to the paidpost Vercel project
-printf '%s' "<ACCESS_KEY_ID>"     | vercel env add R2_ACCESS_KEY_ID production
-printf '%s' "<SECRET_ACCESS_KEY>" | vercel env add R2_SECRET_ACCESS_KEY production
-vercel deploy --prod
-```
-> S3 keys can only be minted from the Cloudflare dashboard (not wrangler/OAuth). The token value (`cfat_…`) is for the Cloudflare REST API and is **not** used here — only the Access Key ID + Secret Access Key go into the env.
+> The S3 API keys ARE set — an earlier version of this doc incorrectly listed them as pending. Confirmed via `vercel env ls` on 2026-06-18.
 
 ---
 
-## 🔴 Stripe — placeholder (do later)
+## 🟡 Stripe — test keys live, Connect + webhook remain (updated 2026-06-18)
 
-Payments and creator payouts. Currently `STRIPE_SECRET_KEY=mock-dev`, so the health check shows `stripe_eu: error`.
+Payments and creator payouts. **Test-mode** keys are now set in Vercel Production and deployed; the key authenticates against the Stripe API (`livemode: false`).
 
-**To finish:** follow `docs/STRIPE_SETUP.md` (full step-by-step), then set the real keys:
-`STRIPE_SECRET_KEY` (+`_US`), `STRIPE_PUBLISHABLE_KEY` (+`_US`), `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` (+`_US`). See `docs/PAYOUTS.md` for how the money flow works.
+**Done:**
+- `STRIPE_SECRET_KEY`, `STRIPE_SECRET_KEY_US` (test secret), `STRIPE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (test publishable) — all set + deployed, verified valid.
+- Backend Stripe Connect + payout code is complete (`lib/payments/stripe-connect.ts`, mobile `creators/stripe-connect|stripe-payout|stripe-balance|stripe-dashboard|wallet` routes).
+
+**Remaining (in order):**
+1. **Enable Connect** on the Stripe account (dashboard → Connect → Express). Currently NOT enabled — creating a Connect account fails with *"You can only create new accounts if you've signed up for Connect."* This blocks all creator onboarding/payouts.
+   - ⛔ Live activation needs the business **EIN** (expected ~Jul 8–22 via Stripe Atlas) + bank account. Test-mode enablement normally doesn't need an SSN; if the dashboard demands one, it's bundling Connect signup with full live activation.
+2. **Webhook** — create `https://paidpost.vercel.app/api/stripe/webhook` (with "Listen to events on Connected accounts" on), then set `STRIPE_WEBHOOK_SECRET` (+`_US`). Until this exists, finished onboarding won't flip `stripe_payouts_enabled`.
+3. **Live keys** — swap test `sk_test_…`/`pk_test_…` for `sk_live_…`/`pk_live_…` after activation, redeploy.
+4. ⚠️ **Roll the current test secret key** — it was exposed in a chat transcript. Roll it in the dashboard and re-set `STRIPE_SECRET_KEY`(+`_US`).
+
+See `docs/STRIPE_SETUP.md` (step-by-step) and `docs/PAYOUTS.md` (money flow).
 
 ## 🔴 Resend — placeholder
 
