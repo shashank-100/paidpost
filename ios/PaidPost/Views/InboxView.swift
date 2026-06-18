@@ -148,6 +148,7 @@ struct ThreadView: View {
     @State private var messages: [MessageDTO] = []
     @State private var draft = ""
     @State private var sending = false
+    @State private var sendError: String?
     @State private var myUserId: String?
 
     var body: some View {
@@ -189,6 +190,19 @@ struct ThreadView: View {
     }
 
     private var composer: some View {
+        VStack(spacing: 6) {
+            if let sendError {
+                Text(sendError)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.coral)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+            }
+            composerBar
+        }
+    }
+
+    private var composerBar: some View {
         HStack(spacing: 10) {
             TextField("Message…", text: $draft, axis: .vertical)
                 .lineLimit(1...4)
@@ -222,13 +236,15 @@ struct ThreadView: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         sending = true
+        sendError = nil
         defer { sending = false }
         do {
             try await InboxAPI.sendMessage(thread.threadKey, body: text)
             draft = ""
             messages = (try? await InboxAPI.fetchThread(thread.threadKey)) ?? messages
         } catch {
-            // Keep the draft so the user can retry.
+            // Keep the draft so the user can retry, but tell them it failed.
+            sendError = (error as? APIError)?.errorDescription ?? "Couldn't send. Tap to retry."
         }
     }
 }

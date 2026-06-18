@@ -14,7 +14,11 @@ struct EarningsView: View {
                 VStack(spacing: 22) {
                     balanceCard
                     statsRow
-                    weeklyChart
+                    // Only show the weekly chart when we have real ledger data
+                    // to plot — never fabricated bars.
+                    if weekData.contains(where: { $0 > 0 }) {
+                        weeklyChart
+                    }
                     if !store.transactions.isEmpty {
                         ledgerSection
                     }
@@ -107,7 +111,7 @@ struct EarningsView: View {
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer()
-                Text("+$\(Int(store.availableBalance))")
+                Text("+$\(Int(weekData.reduce(0, +)))")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Theme.accent)
             }
@@ -140,8 +144,53 @@ struct EarningsView: View {
         }
     }
 
-    private let weekData: [Double] = [40, 0, 90, 60, 180, 120, 80]
-    private let dayLabels = ["M", "T", "W", "T", "F", "S", "S"]
+    /// Real per-day earnings for the last 7 days, derived from the wallet
+    /// ledger (credits only). Index 0 is six days ago, index 6 is today —
+    /// matching `dayLabels`, which is rebuilt from the current weekday.
+    private var weekData: [Double] {
+        EarningsMath.weekData(transactions: store.transactions, now: Date())
+    }
+
+    /// Single-letter weekday labels ending on today, aligned with `weekData`.
+    private var dayLabels: [String] {
+        EarningsMath.dayLabels(now: Date())
+    }
+}
+
+/// Pure earnings-chart math, factored out of the view so the date bucketing and
+/// weekday-label alignment can be unit-tested with injected `now`/`calendar`.
+enum EarningsMath {
+    /// Per-day credit totals for the 7 days ending on `now`. Index 0 is six days
+    /// ago, index 6 is `now`. Debits (amount <= 0) and out-of-window entries are
+    /// ignored.
+    static func weekData(
+        transactions: [TransactionDTO],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [Double] {
+        let today = calendar.startOfDay(for: now)
+        var totals = [Double](repeating: 0, count: 7)
+        for tx in transactions {
+            guard let amount = tx.amount, amount > 0,
+                  let date = BackendDate.parse(tx.created_at) else { continue }
+            let day = calendar.startOfDay(for: date)
+            let offset = calendar.dateComponents([.day], from: day, to: today).day ?? -1
+            if (0...6).contains(offset) {
+                totals[6 - offset] += amount
+            }
+        }
+        return totals
+    }
+
+    /// Single-letter weekday labels for the 7 days ending on `now`, aligned with
+    /// `weekData` (index 6 == today).
+    static func dayLabels(now: Date, calendar: Calendar = .current) -> [String] {
+        let symbols = calendar.veryShortWeekdaySymbols   // ["S","M","T",...] index = weekday-1
+        let todayWeekday = calendar.component(.weekday, from: now) - 1
+        return (0..<7).map { i in
+            symbols[(todayWeekday - (6 - i) + 7 * 2) % 7]
+        }
+    }
 }
 
 private struct BarColumn: View {

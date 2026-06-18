@@ -162,7 +162,7 @@ struct DiscoverView: View {
         } else {
             LazyVStack(spacing: 16) {
                 ForEach(store.filteredMethods) { method in
-                    NavigationLink(value: method) {
+                    NavigationLink(value: DiscoverRoute.method(method)) {
                         MethodCard(method: method, applied: store.hasApplied(to: method))
                     }
                     .buttonStyle(PressableStyle())

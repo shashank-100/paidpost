@@ -4,6 +4,29 @@
 //
 
 import SwiftUI
+import CryptoKit
+
+extension UUID {
+    /// A UUID derived deterministically from a backend id string. If the string
+    /// is already a UUID it's used as-is; otherwise a stable v5-style UUID is
+    /// computed from its hash, so the same backend id always maps to the same
+    /// UUID across refetches (keeping SwiftUI list identity stable).
+    init(stableFrom string: String) {
+        if let parsed = UUID(uuidString: string) {
+            self = parsed
+            return
+        }
+        var bytes = Array(SHA256.hash(data: Data(string.utf8)).prefix(16))
+        // v5-shaped (SHA-256-derived, not RFC-strict — RFC 4122 v5 mandates SHA-1).
+        // The version nibble is cosmetic here; what matters is determinism.
+        bytes[6] = (bytes[6] & 0x0F) | 0x50  // version nibble (5-shaped)
+        bytes[8] = (bytes[8] & 0x3F) | 0x80  // RFC 4122 variant
+        self = UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3],
+                           bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11],
+                           bytes[12], bytes[13], bytes[14], bytes[15]))
+    }
+}
 
 /// A paid content opportunity that creators can apply to.
 struct Method: Identifiable, Hashable {

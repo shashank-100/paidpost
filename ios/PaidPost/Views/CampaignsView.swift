@@ -13,6 +13,7 @@ struct CampaignsView: View {
     @Environment(AppStore.self) private var store
     @State private var filter: CampaignFilter = .all
     @State private var loading = true
+    @State private var loadFailed = false
 
     enum CampaignFilter: String, CaseIterable, Identifiable {
         case all = "All"
@@ -31,6 +32,8 @@ struct CampaignsView: View {
                 if loading && store.campaigns.isEmpty {
                     ProgressView().tint(Theme.accent)
                         .frame(maxWidth: .infinity).padding(.top, 60)
+                } else if loadFailed && store.campaigns.isEmpty {
+                    errorState
                 } else if shown.isEmpty {
                     emptyState
                 } else {
@@ -39,7 +42,9 @@ struct CampaignsView: View {
                             CampaignRow(brand: brand)
                         }
                         .buttonStyle(PressableStyle())
-                        .disabled(brand.slug == nil)
+                        // Disable on nil OR empty slug — an empty slug would push
+                        // a workspace that immediately errors.
+                        .disabled(brand.slug?.isEmpty != false)
                     }
                 }
             }
@@ -55,8 +60,13 @@ struct CampaignsView: View {
         .navigationDestination(for: DiscoverRoute.self) { route in
             if case .workspace(let slug) = route { WorkspaceView(brandSlug: slug) }
         }
-        .task { await store.loadCampaigns(); loading = false }
-        .refreshable { await store.loadCampaigns() }
+        .task { await reload() }
+        .refreshable { await reload() }
+    }
+
+    private func reload() async {
+        loadFailed = !(await store.loadCampaigns())
+        loading = false
     }
 
     private var filterPills: some View {
@@ -101,6 +111,27 @@ struct CampaignsView: View {
         case .past:
             return brands.filter { ["dropped", "rejected"].contains($0.status ?? "") }
         }
+    }
+
+    private var errorState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(Theme.textTertiary)
+            Text("Couldn't load your campaigns")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Theme.textPrimary)
+            Text("Check your connection and try again.")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+            Button("Try again") { Task { await reload() } }
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Theme.accent)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
+        .padding(.horizontal, 30)
     }
 
     private var emptyState: some View {

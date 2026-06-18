@@ -100,6 +100,16 @@ struct CreatorVideosDTO: Decodable {
     let requiredCount: Int?
     let maxCount: Int?
 
+    // A missing or null `videos` (nothing uploaded yet) decodes to [] rather
+    // than failing the whole response.
+    enum CodingKeys: String, CodingKey { case videos, requiredCount, maxCount }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        videos = (try? c.decode([VideoSlot].self, forKey: .videos)) ?? []
+        requiredCount = try? c.decodeIfPresent(Int.self, forKey: .requiredCount)
+        maxCount = try? c.decodeIfPresent(Int.self, forKey: .maxCount)
+    }
+
     struct VideoSlot: Decodable, Identifiable, Hashable {
         let id: String
         let slotNumber: Int
@@ -114,6 +124,14 @@ struct CreatorVideosDTO: Decodable {
 struct CreatorPostsDTO: Decodable {
     let posts: [CreatorPostDTO]
     let hasMore: Bool?
+
+    // A missing or null `posts` (none yet) decodes to [] rather than failing.
+    enum CodingKeys: String, CodingKey { case posts, hasMore }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        posts = (try? c.decode([CreatorPostDTO].self, forKey: .posts)) ?? []
+        hasMore = try? c.decodeIfPresent(Bool.self, forKey: .hasMore)
+    }
 }
 
 struct CreatorPostDTO: Decodable, Identifiable, Hashable {
@@ -150,6 +168,20 @@ struct WarmupTimelineDTO: Decodable {
         let periodEnd: String?
         let status: String?          // submitted | due | upcoming
         var id: String { "\(platform)-\(windowIndex)" }
+
+        // Tolerate a missing platform/windowIndex on a single task rather than
+        // failing the entire timeline decode.
+        enum CodingKeys: String, CodingKey {
+            case platform, windowIndex, periodStart, periodEnd, status
+        }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            platform = (try? c.decodeIfPresent(String.self, forKey: .platform)) ?? "unknown"
+            windowIndex = (try? c.decodeIfPresent(Int.self, forKey: .windowIndex)) ?? 0
+            periodStart = try? c.decodeIfPresent(String.self, forKey: .periodStart)
+            periodEnd = try? c.decodeIfPresent(String.self, forKey: .periodEnd)
+            status = try? c.decodeIfPresent(String.self, forKey: .status)
+        }
     }
 }
 

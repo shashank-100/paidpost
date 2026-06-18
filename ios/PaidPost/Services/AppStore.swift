@@ -53,9 +53,10 @@ final class AppStore {
         if isSignedIn { await loadAll() }
     }
 
+    #if DEBUG
     /// Test/screenshot-only: skip onboarding and sign in via the Apple-review
     /// bypass so automation lands directly in the app. Invoked from a launch
-    /// argument; never runs in normal use.
+    /// argument; never runs in normal use. DEBUG-only so it can't ship.
     func uiTestAutoLogin() async {
         hasOnboarded = true
         do {
@@ -67,6 +68,7 @@ final class AppStore {
             authError = error.localizedDescription
         }
     }
+    #endif
 
     /// Requests an email OTP code.
     func sendSignInCode(email: String) async -> Bool {
@@ -87,9 +89,11 @@ final class AppStore {
         authInProgress = true; authError = nil
         defer { authInProgress = false }
 
+        #if DEBUG
         // App Review path: the reviewer signs in with the fixed test account.
         // That mailbox can't receive a live OTP, so route it through the
         // backend's review bypass instead of Supabase OTP verification.
+        // DEBUG-only so the bypass and its credentials never ship in release.
         if email.lowercased() == APIConfig.TestAccount.email.lowercased(),
            code == APIConfig.TestAccount.code {
             do {
@@ -103,6 +107,7 @@ final class AppStore {
                 return false
             }
         }
+        #endif
 
         do {
             let session = try await AuthAPI.verifyCode(email: email, code: code)
@@ -140,14 +145,21 @@ final class AppStore {
     }
 
     /// Permanently deletes the signed-in creator's account, then signs out.
-    /// Backend: `DELETE /api/mobile/creator/account`.
+    /// Backend: `DELETE /api/mobile/creator/account`. Returns false (and sets
+    /// `authError`) without signing out when the delete fails, so a network
+    /// error doesn't silently log the user out of an undeleted account.
     @discardableResult
     func deleteAccount() async -> Bool {
-        let ok = await CreatorAPI.deleteAccount()
+        do {
+            _ = try await CreatorAPI.deleteAccount()
+        } catch {
+            authError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            return false
+        }
         await APIClient.shared.signOut()
         isSignedIn = false
         clearUserData()
-        return ok
+        return true
     }
 
     /// Wipes all per-user state back to empty (no demo content).
@@ -362,9 +374,18 @@ final class AppStore {
     /// Brands the creator is managed by, for the campaigns list + workspace entry.
     var campaigns: [ManagedStatusDTO.ManagedBrandDTO] = []
 
-    func loadCampaigns() async {
-        guard let status = try? await WorkspaceAPI.fetchManagedStatus() else { return }
-        campaigns = status.brands ?? []
+    /// Loads the managed-brand list. Returns false on failure (leaving existing
+    /// campaigns intact) so callers can distinguish a network error from a
+    /// genuinely empty list instead of showing a misleading "no campaigns" state.
+    @discardableResult
+    func loadCampaigns() async -> Bool {
+        do {
+            let status = try await WorkspaceAPI.fetchManagedStatus()
+            campaigns = status.brands ?? []
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Actionable items derived from current applications/campaigns — drives
@@ -402,9 +423,32 @@ final class AppStore {
         applications.contains { $0.method.id == method.id }
     }
 
-    func apply(to method: Method) {
-        guard !hasApplied(to: method) else { return }
-        // Optimistic local insert for instant UI feedback.
+    /// Applies to a method with an optimistic local insert, then persists to the
+    /// backend. On failure the optimistic row is rolled back and `false` is
+    /// returned so the UI can show an error instead of a fake confirmation.
+    @discardableResult
+    func apply(to method: Method) async -> Bool {
+        // Optimistic local insert for instant UI feedback; returns nil when the
+        // user already applied (a no-op the caller treats as success).
+        guard let application = insertOptimisticApplication(for: method) else { return true }
+        // Persist to the backend. The job id is the Method id.
+        do {
+            _ = try await CreatorAPI.apply(jobId: method.id.uuidString)
+            return true
+        } catch {
+            // Roll back the optimistic insert so state matches the server.
+            applications.removeAll { $0.id == application.id }
+            authError = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            return false
+        }
+    }
+
+    /// Inserts the optimistic application row for `method`, or returns nil if
+    /// one already exists. Pure local state mutation — split out so the apply
+    /// logic is unit-testable without a backend.
+    @discardableResult
+    func insertOptimisticApplication(for method: Method) -> Application? {
+        guard !hasApplied(to: method) else { return nil }
         let application = Application(
             id: UUID(),
             method: method,
@@ -414,8 +458,7 @@ final class AppStore {
             views: 0
         )
         applications.insert(application, at: 0)
-        // Persist to the backend in the background. The job id is the Method id.
-        Task { try? await CreatorAPI.apply(jobId: method.id.uuidString) }
+        return application
     }
 
     // Cash-out is intentionally not implemented locally: payouts only happen

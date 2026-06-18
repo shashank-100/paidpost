@@ -138,11 +138,22 @@ struct WarmupView: View {
 
     private var canAddURL: Bool {
         let t = nicheURL.trimmingCharacters(in: .whitespaces)
-        return t.hasPrefix("https://")
+        // Require a real host, not just the "https://" prefix (a bare scheme
+        // would otherwise pass and get submitted as a broken URL).
+        guard let url = URL(string: t), url.scheme == "https", let host = url.host else {
+            return false
+        }
+        return host.contains(".")
     }
 
     private func load() async {
-        timeline = try? await WorkspaceAPI.fetchWarmup(brandSlug: brandSlug)
+        do {
+            timeline = try await WorkspaceAPI.fetchWarmup(brandSlug: brandSlug)
+            note = nil
+        } catch {
+            // Surface the failure rather than showing an empty intro silently.
+            note = (error as? APIError)?.errorDescription ?? error.localizedDescription
+        }
         loading = false
     }
 

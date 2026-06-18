@@ -37,6 +37,12 @@ struct MessageDTO: Decodable, Identifiable, Hashable {
 }
 
 enum InboxAPI {
+    /// Percent-encodes a path segment (thread keys are UUIDs or "system" today,
+    /// but encode defensively so a reserved character can never break the URL).
+    private static func encode(_ segment: String) -> String {
+        segment.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? segment
+    }
+
     static func fetchInbox() async throws -> [ThreadDTO] {
         struct Envelope: Decodable { let data: [ThreadDTO] }
         let envelope: Envelope = try await APIClient.shared.get("inbox")
@@ -48,14 +54,14 @@ enum InboxAPI {
         struct Envelope: Decodable { let data: [MessageDTO] }
         var query: [URLQueryItem] = []
         if let before { query.append(URLQueryItem(name: "before", value: before)) }
-        let envelope: Envelope = try await APIClient.shared.get("threads/\(threadKey)", query: query)
+        let envelope: Envelope = try await APIClient.shared.get("threads/\(encode(threadKey))", query: query)
         return envelope.data
     }
 
     /// Marks the thread's inbound messages read. Fire-and-forget.
     static func markThreadRead(_ threadKey: String) async {
         struct Ack: Decodable { let ok: Bool? }
-        _ = try? await APIClient.shared.send("threads/\(threadKey)/read", method: "POST") as Ack
+        _ = try? await APIClient.shared.send("threads/\(encode(threadKey))/read", method: "POST") as Ack
     }
 
     /// Sends a reply into the thread (max 4000 chars, enforced server-side).
@@ -63,7 +69,7 @@ enum InboxAPI {
         struct Body: Encodable { let body: String }
         struct Ack: Decodable { let ok: Bool?; let message_id: String? }
         _ = try await APIClient.shared.send(
-            "threads/\(threadKey)/messages", method: "POST", body: Body(body: body)
+            "threads/\(encode(threadKey))/messages", method: "POST", body: Body(body: body)
         ) as Ack
     }
 }

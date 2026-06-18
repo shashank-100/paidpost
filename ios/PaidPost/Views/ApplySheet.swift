@@ -12,6 +12,8 @@ struct ApplySheet: View {
     let method: Method
 
     @State private var submitted = false
+    @State private var submitting = false
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,26 +41,50 @@ struct ApplySheet: View {
                 step(number: 3, text: "Get $\(Int(method.payPerPost)) paid out instantly")
             }
 
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.coral)
+            }
+
             Spacer()
 
             Button {
-                let generator = UINotificationFeedbackGenerator()
-                generator.notificationOccurred(.success)
-                store.apply(to: method)
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    submitted = true
-                }
+                Task { await submit() }
             } label: {
-                Text("Submit application")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(Theme.background)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 17)
-                    .background(Theme.accent)
-                    .clipShape(.rect(cornerRadius: 18))
+                Group {
+                    if submitting {
+                        ProgressView().tint(Theme.background)
+                    } else {
+                        Text("Submit application").font(.system(size: 17, weight: .bold))
+                    }
+                }
+                .foregroundStyle(Theme.background)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 17)
+                .background(Theme.accent)
+                .clipShape(.rect(cornerRadius: 18))
             }
             .buttonStyle(.plain)
+            .disabled(submitting)
             .padding(.bottom, 12)
+        }
+    }
+
+    /// Persists the application and only shows the success screen once the
+    /// backend confirms — a failure surfaces an error instead of a fake "You're in!".
+    private func submit() async {
+        submitting = true
+        errorMessage = nil
+        defer { submitting = false }
+        let ok = await store.apply(to: method)
+        guard ok else {
+            errorMessage = store.authError ?? "Couldn't submit your application. Try again."
+            return
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            submitted = true
         }
     }
 

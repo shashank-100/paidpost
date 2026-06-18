@@ -14,6 +14,7 @@ struct MyContentView: View {
 
     @State private var posts: [CreatorPostDTO] = []
     @State private var loading = true
+    @State private var loadError: String?
     @State private var syncing = false
     @State private var syncNote: String?
     @State private var adCodeTarget: CreatorPostDTO?
@@ -29,6 +30,8 @@ struct MyContentView: View {
                 }
                 if loading {
                     ProgressView().tint(Theme.accent).frame(maxWidth: .infinity).padding(.top, 40)
+                } else if let loadError, posts.isEmpty {
+                    errorState(loadError)
                 } else if posts.isEmpty {
                     emptyState
                 } else {
@@ -53,8 +56,13 @@ struct MyContentView: View {
     }
 
     private func load() async {
-        if let result = try? await WorkspaceAPI.fetchPosts(brandSlug: brandSlug) {
+        do {
+            let result = try await WorkspaceAPI.fetchPosts(brandSlug: brandSlug)
             posts = result.posts
+            loadError = nil
+        } catch {
+            // Don't let a network failure look like "no posts yet".
+            loadError = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
         loading = false
     }
@@ -92,6 +100,27 @@ struct MyContentView: View {
         }
     }
 
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 36, weight: .light))
+                .foregroundStyle(Theme.textTertiary)
+            Text("Couldn't load your posts")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(Theme.textPrimary)
+            Text(message)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+            Button("Try again") { Task { await load() } }
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Theme.accent)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .padding(.horizontal, 30)
+    }
+
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "video.slash.fill")
@@ -126,7 +155,9 @@ private struct PostCard: View {
                     .foregroundStyle(Theme.textPrimary)
                 Spacer()
                 if let owed = post.total_owed_cents, owed > 0 {
-                    Text("$\(owed / 100) owed")
+                    // Format cents as dollars-and-cents — integer division would
+                    // silently drop the cents (e.g. 1599¢ → "$15" not "$15.99").
+                    Text(String(format: "$%.2f owed", Double(owed) / 100))
                         .font(.system(size: 13, weight: .heavy, design: .rounded))
                         .foregroundStyle(Theme.accent)
                 }

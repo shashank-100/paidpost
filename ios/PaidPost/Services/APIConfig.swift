@@ -23,10 +23,13 @@ nonisolated enum APIConfig {
         static let publishableKey = "sb_publishable_UN8AyG18fzvD000Vd2SwNw_oGNSv1fh"
     }
 
+    #if DEBUG
     /// Apple-review test account used by the `auth/test-bypass` route.
     /// Only works when the backend has `APPLE_REVIEW_BYPASS_ENABLED=true`.
+    /// DEBUG-only so the credentials and bypass path never ship in a release IPA.
     enum TestAccount {
         static let email = "test-user-0-apple@gmail.com"
         static let code = "000000"
     }
+    #endif
 }

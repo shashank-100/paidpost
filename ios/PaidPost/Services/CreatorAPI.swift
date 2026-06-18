@@ -148,19 +148,33 @@ enum CreatorAPI {
     }
 
     /// Applies to a job. `POST /api/mobile/jobs/{id}/apply`
+    ///
+    /// A non-2xx response throws via `APIClient.perform`. A 2xx body that still
+    /// carries an `error` (the backend occasionally returns `{ "error": ... }`
+    /// at HTTP 200) is treated as a failure rather than a silent success.
     @discardableResult
     static func apply(jobId: String) async throws -> Bool {
         struct Ack: Decodable { let success: Bool?; let error: String? }
         let ack: Ack = try await APIClient.shared.send("jobs/\(jobId.lowercased())/apply", method: "POST")
-        return ack.success ?? (ack.error == nil)
+        if let error = ack.error, ack.success != true {
+            throw APIError.server(status: 400, message: error)
+        }
+        return ack.success ?? true
     }
 
     /// Permanently deletes the creator's account.
     /// `DELETE /api/mobile/creator/account` → `{ success: true }`.
-    static func deleteAccount() async -> Bool {
-        struct Ack: Decodable { let success: Bool? }
-        let ack: Ack? = try? await APIClient.shared.send("creator/account", method: "DELETE")
-        return ack?.success ?? false
+    /// Throws on transport/decoding failure (vs. a server "false") so callers
+    /// can distinguish "network down" from "server refused" for this permanent,
+    /// destructive action.
+    @discardableResult
+    static func deleteAccount() async throws -> Bool {
+        struct Ack: Decodable { let success: Bool?; let error: String? }
+        let ack: Ack = try await APIClient.shared.send("creator/account", method: "DELETE")
+        if let error = ack.error, ack.success != true {
+            throw APIError.server(status: 400, message: error)
+        }
+        return ack.success ?? true
     }
 
     /// Updates editable profile fields. Nil fields are left untouched.
@@ -238,7 +252,9 @@ enum CreatorAPI {
         let ack: Ack = try await APIClient.shared.send(
             "creators/stripe-payout", method: "POST", body: Body()
         )
-        if ack.success == false {
+        // Treat an explicit false OR a 200-with-error as failure; only a
+        // missing-both or success:true body counts as a successful payout.
+        if ack.success != true, ack.success == false || ack.error != nil {
             throw APIError.server(status: 400, message: ack.error ?? "Payout failed.")
         }
     }
@@ -250,7 +266,7 @@ extension NotificationDTO {
     func toNotification() -> Notification {
         let kind = Self.kind(for: type ?? "")
         return Notification(
-            id: UUID(uuidString: id) ?? UUID(),
+            id: UUID(stableFrom: id),
             type: kind,
             title: (title?.isEmpty == false) ? title! : Self.defaultTitle(for: kind),
             body: body ?? "",
@@ -284,7 +300,7 @@ extension ApplicationDTO {
     /// Earnings list renders even when the job isn't in the current feed.
     func toApplication() -> Application {
         let method = Method(
-            id: UUID(uuidString: id) ?? UUID(),
+            id: UUID(stableFrom: id),
             brand: brand_name ?? "Brand",
             title: job_title ?? "Application",
             tagline: "",
@@ -301,7 +317,7 @@ extension ApplicationDTO {
             exampleHooks: []
         )
         return Application(
-            id: UUID(uuidString: id) ?? UUID(),
+            id: UUID(stableFrom: id),
             method: method,
             status: Self.status(for: application_status ?? "pending"),
             appliedAt: BackendDate.parse(applied_at) ?? Date(),

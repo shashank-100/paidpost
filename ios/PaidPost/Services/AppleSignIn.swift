@@ -26,6 +26,12 @@ final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate,
 
     /// Presents the Apple sign-in sheet and resolves with the id_token + nonce.
     func signIn() async throws -> Result {
+        // Fail fast if there's no window to anchor the sheet to — otherwise the
+        // controller silently never presents and the continuation hangs forever.
+        guard Self.presentationWindow() != nil else {
+            throw AuthAPI.AuthError.server("Couldn't present Apple sign-in.")
+        }
+
         let nonce = Self.randomNonce()
         currentNonce = nonce
 
@@ -76,20 +82,21 @@ final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate,
     }
 
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        // Prefer the active foreground scene's key window; fall back to any
-        // window across scenes before the empty-anchor last resort.
+        // `signIn()` already guarded against the no-window case, so this should
+        // always find a window; the empty-anchor fallback is a last resort.
+        Self.presentationWindow() ?? ASPresentationAnchor()
+    }
+
+    /// The window Apple's sheet should anchor to: the active foreground scene's
+    /// key window, falling back to any window across scenes. Returns nil when no
+    /// window scene exists (so the caller can fail fast instead of hanging).
+    private static func presentationWindow() -> UIWindow? {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         if let active = scenes.first(where: { $0.activationState == .foregroundActive }),
            let window = active.keyWindow ?? active.windows.first {
             return window
         }
-        if let anyWindow = scenes.flatMap(\.windows).first {
-            return anyWindow
-        }
-        // No window scene available — Apple's sheet can't anchor. Log so this
-        // isn't a silent failure if it ever happens.
-        print("[AppleSignIn] No window scene available to present the sign-in sheet.")
-        return ASPresentationAnchor()
+        return scenes.flatMap(\.windows).first
     }
 
     // MARK: - Nonce helpers

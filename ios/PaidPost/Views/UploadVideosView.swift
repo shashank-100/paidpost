@@ -21,26 +21,39 @@ struct UploadVideosView: View {
     @State private var uploadingSlot: Int?
     @State private var pickerItem: PhotosPickerItem?
     @State private var targetSlot = 1
+    @State private var pickerPresented = false
     @State private var errorMessage: String?
     @State private var submitting = false
     @State private var submittedStatus: String?
 
-    private var uploadedCount: Int { slots.count }
-    private var canSubmit: Bool { uploadedCount >= 1 && submittedStatus == nil }
+    /// Count only videos in the required slots (1...requiredCount) — the backend
+    /// can return extra slots up to `maxCount`, and counting those would make
+    /// the "x/requiredCount" header and `canSubmit` disagree with the rendered rows.
+    private var uploadedCount: Int { slots.filter { (1...requiredCount).contains($0.slotNumber) }.count }
+    /// Submission requires every required slot to be filled — the header
+    /// advertises `requiredCount`, so the button must match it.
+    private var canSubmit: Bool { uploadedCount >= requiredCount && submittedStatus == nil }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
-                ForEach(1...requiredCount, id: \.self) { slot in
-                    slotRow(slot)
+                if loading {
+                    // Don't render placeholder slots with default counts before
+                    // the real requiredCount/maxCount load — they'd flicker.
+                    ProgressView().tint(Theme.accent)
+                        .frame(maxWidth: .infinity).padding(.top, 40)
+                } else {
+                    ForEach(1...requiredCount, id: \.self) { slot in
+                        slotRow(slot)
+                    }
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.coral)
+                    }
+                    submitButton
                 }
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Theme.coral)
-                }
-                submitButton
             }
             .padding(20)
         }
@@ -50,6 +63,9 @@ struct UploadVideosView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await load() }
+        // Single picker driven by an explicit slot set synchronously on tap,
+        // so the chosen video always lands in the slot the user tapped.
+        .photosPicker(isPresented: $pickerPresented, selection: $pickerItem, matching: .videos)
         .onChange(of: pickerItem) {
             Task { await handlePicked() }
         }
@@ -92,7 +108,10 @@ struct UploadVideosView: View {
                     .foregroundStyle(existing != nil ? Theme.accent : Theme.textSecondary)
             }
             Spacer()
-            PhotosPicker(selection: $pickerItem, matching: .videos) {
+            Button {
+                targetSlot = slot          // set synchronously before presenting
+                pickerPresented = true
+            } label: {
                 Text(existing != nil ? "Replace" : "Choose")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Theme.background)
@@ -100,8 +119,8 @@ struct UploadVideosView: View {
                     .background(Theme.accent)
                     .clipShape(.capsule)
             }
+            .buttonStyle(.plain)
             .disabled(isUploading || submitting)
-            .simultaneousGesture(TapGesture().onEnded { targetSlot = slot })
         }
         .methodCard(padding: 14)
     }
@@ -135,10 +154,15 @@ struct UploadVideosView: View {
     }
 
     private func load() async {
-        if let data = try? await WorkspaceAPI.fetchVideos(brandSlug: brandSlug) {
+        do {
+            let data = try await WorkspaceAPI.fetchVideos(brandSlug: brandSlug)
             slots = data.videos
             requiredCount = data.requiredCount ?? 3
             maxCount = data.maxCount ?? 10
+            errorMessage = nil
+        } catch {
+            // Surface the failure instead of letting it look like empty slots.
+            errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
         loading = false
     }

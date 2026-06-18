@@ -99,6 +99,17 @@ struct ProfileView: View {
         .tint(Theme.accent)
     }
 
+    /// Subtitle for the campaigns banner. Counts only active-status brands so
+    /// "N active" is truthful — `store.campaigns` also holds rejected/dropped/
+    /// past brands, which shouldn't inflate the count.
+    private var campaignsSubtitle: String {
+        if store.campaigns.isEmpty { return "Brands you're working with" }
+        let active = store.campaigns.filter {
+            ["warming_up", "active", "ghosted", "unclear"].contains($0.status ?? "")
+        }.count
+        return active > 0 ? "\(active) active" : "\(store.campaigns.count) campaigns"
+    }
+
     private var campaignsBanner: some View {
         Button {
             path.append(.campaigns)
@@ -117,9 +128,7 @@ struct ProfileView: View {
                     Text("Campaigns")
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(Theme.textPrimary)
-                    Text(store.campaigns.isEmpty
-                         ? "Brands you're working with"
-                         : "\(store.campaigns.count) active")
+                    Text(campaignsSubtitle)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Theme.textSecondary)
                 }
@@ -216,7 +225,7 @@ struct ProfileView: View {
         HStack(spacing: 0) {
             profileStat(value: store.followers.shortFormatted, label: "Followers")
             divider
-            profileStat(value: "\(store.applications.count)", label: "Methods")
+            profileStat(value: "\(store.applications.count)", label: "Applied")
             divider
             profileStat(value: "$\(Int(store.totalEarned))", label: "Earned")
         }

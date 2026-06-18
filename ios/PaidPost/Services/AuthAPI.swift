@@ -132,7 +132,8 @@ nonisolated enum AuthAPI {
 
     private static func supabaseAuth(_ path: String, json: [String: Any]) async throws -> (Int, Data) {
         let url = APIConfig.Supabase.url.appendingPathComponent("auth/v1").absoluteString + "/" + path
-        var request = URLRequest(url: URL(string: url)!)
+        guard let endpoint = URL(string: url) else { throw AuthError.server("Invalid auth URL.") }
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue(APIConfig.Supabase.publishableKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

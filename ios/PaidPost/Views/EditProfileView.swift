@@ -29,7 +29,10 @@ struct EditProfileView: View {
                     photoPicker
                     field("Display name", text: $displayName, prompt: "Your public name")
                     field("Location", text: $location, prompt: "City, Country")
-                    field("Languages", text: $languages, prompt: "English, Spanish…")
+                    // The profile payload doesn't return current languages, so
+                    // this field can't be prefilled — make clear it sets/updates
+                    // rather than reflecting an (apparently empty) current value.
+                    field("Add or update languages", text: $languages, prompt: "English, Spanish…")
                     bioField
 
                     if let errorMessage {

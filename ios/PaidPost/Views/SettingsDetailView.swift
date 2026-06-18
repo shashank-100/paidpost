@@ -17,6 +17,8 @@ struct SettingsDetailView: View {
     @AppStorage("notify.tips") private var notifyTips = false
 
     @State private var showDeleteConfirm = false
+    @State private var deleting = false
+    @State private var deleteError: String?
     @Environment(\.openURL) private var openURL
 
     enum Kind: String, CaseIterable {
@@ -149,16 +151,36 @@ struct SettingsDetailView: View {
             Button(role: .destructive) {
                 showDeleteConfirm = true
             } label: {
-                accountActionRow(icon: "trash.fill", title: "Delete account", tint: Theme.coral)
+                accountActionRow(
+                    icon: deleting ? "hourglass" : "trash.fill",
+                    title: deleting ? "Deleting…" : "Delete account",
+                    tint: Theme.coral
+                )
             }
             .buttonStyle(PressableStyle())
+            .disabled(deleting)
             .alert("Delete your account?", isPresented: $showDeleteConfirm) {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) {
-                    Task { await store.deleteAccount() }
+                    Task {
+                        deleting = true
+                        deleteError = nil
+                        let ok = await store.deleteAccount()
+                        deleting = false
+                        // On success the auth gate tears this view down; on
+                        // failure surface why so the user isn't left guessing.
+                        if !ok { deleteError = store.authError ?? "Couldn't delete your account. Try again." }
+                    }
                 }
             } message: {
                 Text("This permanently deletes your account, applications, and earnings history. This can't be undone.")
+            }
+
+            if let deleteError {
+                Text(deleteError)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.coral)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

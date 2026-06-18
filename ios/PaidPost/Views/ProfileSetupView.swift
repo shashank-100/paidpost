@@ -153,7 +153,9 @@ struct ProfileSetupView: View {
     private var canAdvance: Bool {
         switch step {
         case .name: return !firstName.trimmingCharacters(in: .whitespaces).isEmpty
-        case .dob: return isAdult
+        // Require the user to actively set their DOB (not just accept the
+        // 20-years-ago default) AND be 18+, so the age gate is real.
+        case .dob: return dobConfirmed && isAdult
         case .location: return !location.trimmingCharacters(in: .whitespaces).isEmpty
         case .photo: return true   // photo is optional
         }

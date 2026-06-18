@@ -6,5 +6,11 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- GoogleSignIn stores its tokens in the keychain and requires a keychain
+	     access group. Without this it fails with errSecMissingEntitlement (-34018). -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	</array>
 </dict>
 </plist>

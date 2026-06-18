@@ -33,6 +33,11 @@ actor APIClient {
     private let session: URLSession
     private let decoder: JSONDecoder
     private var current: AuthSession?
+    /// In-flight refresh, shared so concurrent 401s/expired-token callers await
+    /// one refresh instead of each firing their own. Supabase refresh tokens
+    /// rotate (single-use), so parallel refreshes would invalidate each other
+    /// and log the user out mid-session.
+    private var refreshTask: Task<AuthSession, Error>?
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -70,6 +75,23 @@ actor APIClient {
 
     private static func jwtIssuer(_ jwt: String) -> String? { jwtClaim(jwt, "iss") }
 
+    /// Pulls a human-readable message out of an error response, tolerating the
+    /// common shapes: `{"error":"..."}`, `{"message":"..."}`, and a nested
+    /// `{"error":{"message":"..."}}`. Returns nil when nothing usable is found.
+    /// `internal` so it can be unit-tested (it's the string users see on every
+    /// failed request).
+    static func errorMessage(from data: Data) -> String? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        if let s = obj["error"] as? String { return s }
+        if let s = obj["message"] as? String { return s }
+        if let nested = obj["error"] as? [String: Any], let s = nested["message"] as? String {
+            return s
+        }
+        return nil
+    }
+
     /// Adopts a freshly minted session (after sign-in) and persists it.
     func setSession(_ session: AuthSession) {
         current = session
@@ -94,10 +116,7 @@ actor APIClient {
         guard let session = current else { return nil }
         if session.isExpired {
             do {
-                let refreshed = try await AuthAPI.refresh(session)
-                current = refreshed
-                SessionStore.save(refreshed)
-                return refreshed.accessToken
+                return try await refreshSession(from: session).accessToken
             } catch {
                 // Refresh failed → session is dead; force re-login.
                 signOut()
@@ -107,11 +126,42 @@ actor APIClient {
         return session.accessToken
     }
 
+    /// Refreshes the session, coalescing concurrent callers onto a single
+    /// in-flight refresh so the rotating refresh token is only spent once.
+    /// `expected` is the session the caller observed; if another refresh has
+    /// already produced a newer session, that newer one is returned instead of
+    /// starting a redundant refresh.
+    private func refreshSession(from expected: AuthSession) async throws -> AuthSession {
+        // A concurrent refresh already finished and replaced the session — use it.
+        if let current, current.accessToken != expected.accessToken, !current.isExpired {
+            return current
+        }
+        if let refreshTask {
+            return try await refreshTask.value
+        }
+        let task = Task { () throws -> AuthSession in
+            try await AuthAPI.refresh(expected)
+        }
+        refreshTask = task
+        defer { refreshTask = nil }
+        do {
+            let refreshed = try await task.value
+            current = refreshed
+            SessionStore.save(refreshed)
+            return refreshed
+        } catch {
+            throw error
+        }
+    }
+
     // MARK: - Auth
 
+    #if DEBUG
     /// Authenticates with the Apple-review bypass route and persists the
     /// session, exactly like a normal sign-in. Requires
     /// `APPLE_REVIEW_BYPASS_ENABLED=true` on the backend.
+    /// DEBUG-only so this code path and the test credentials never ship in a
+    /// release build.
     @discardableResult
     func authenticateTestBypass() async throws -> String {
         struct Body: Encodable { let email: String; let code: String }
@@ -135,6 +185,7 @@ actor APIClient {
         setSession(session)
         return response.access_token
     }
+    #endif
 
     // MARK: - Requests
 
@@ -151,15 +202,23 @@ actor APIClient {
         request.httpMethod = "PUT"
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.httpBody = data
+        let body: Data
         let response: URLResponse
         do {
-            (_, response) = try await session.data(for: request)
+            (body, response) = try await session.data(for: request)
         } catch {
             throw APIError.transport(error)
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200...299).contains(http.statusCode) else {
-            throw APIError.server(status: http.statusCode, message: "Upload failed (\(http.statusCode))")
+            // R2 returns an XML/JSON error body (signature mismatch, content-type
+            // mismatch, etc.). Include a snippet so upload failures are diagnosable.
+            let detail = String(data: body.prefix(500), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = (detail?.isEmpty == false)
+                ? "Upload failed (\(http.statusCode)): \(detail!)"
+                : "Upload failed (\(http.statusCode))"
+            throw APIError.server(status: http.statusCode, message: message)
         }
     }
 
@@ -173,13 +232,19 @@ actor APIClient {
         authenticated: Bool = true,
         retryOn401: Bool = true
     ) async throws -> T {
-        var components = URLComponents(
+        // Build the URL defensively: `path` can carry backend-controlled
+        // segments (slugs, ids), so a malformed component must throw rather
+        // than crash on a force-unwrap.
+        guard var components = URLComponents(
             url: APIConfig.mobileBaseURL.appendingPathComponent(path),
             resolvingAgainstBaseURL: false
-        )!
+        ) else {
+            throw APIError.invalidResponse
+        }
         if !query.isEmpty { components.queryItems = query }
 
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw APIError.invalidResponse }
+        var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
@@ -251,19 +316,17 @@ actor APIClient {
                 throw APIError.decoding(error)
             }
         case 401:
-            // Token may have been revoked while still unexpired — refresh once.
+            // Token may have been revoked while still unexpired — refresh once,
+            // coalescing concurrent 401s onto a single shared refresh.
             if authenticated, retryOn401, let session = current {
-                if let refreshed = try? await AuthAPI.refresh(session) {
-                    current = refreshed
-                    SessionStore.save(refreshed)
+                if (try? await refreshSession(from: session)) != nil {
                     return try await retry()
                 }
                 signOut()
             }
             throw APIError.unauthorized
         default:
-            let message = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
-            throw APIError.server(status: http.statusCode, message: message)
+            throw APIError.server(status: http.statusCode, message: Self.errorMessage(from: data))
         }
     }
 }

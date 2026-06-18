@@ -21,14 +21,18 @@ struct NotificationsView: View {
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .swipeActions(edge: .trailing) {
-                                Button {
-                                    withAnimation {
-                                        store.markNotificationRead(notification)
+                                // Mark-read is one-way; only offer it on unread
+                                // items so the affordance isn't misleading.
+                                if !notification.isRead {
+                                    Button {
+                                        withAnimation {
+                                            store.markNotificationRead(notification)
+                                        }
+                                    } label: {
+                                        Label("Mark read", systemImage: "envelope.open.fill")
                                     }
-                                } label: {
-                                    Image(systemName: notification.isRead ? "envelope.fill" : "envelope.open.fill")
+                                    .tint(notification.type.color)
                                 }
-                                .tint(notification.isRead ? Theme.textTertiary : notification.type.color)
                             }
                     }
                 }

@@ -42,11 +42,10 @@ enum JobsAPI {
     }
 
     /// Best-effort ISO-3166 alpha-2 from the device locale (e.g. "US").
-    static var deviceRegion: String? {
-        if #available(iOS 16, *) {
-            return Locale.current.region?.identifier
-        }
-        return Locale.current.regionCode
+    /// `nonisolated` so it can be used as a default-argument expression without
+    /// crossing the main actor.
+    nonisolated static var deviceRegion: String? {
+        Locale.current.region?.identifier
     }
 }
 
@@ -55,7 +54,7 @@ extension JobDTO {
     /// Fields the backend doesn't provide get sensible defaults so the existing
     /// views render unchanged.
     func toMethod() -> Method {
-        let methodId: UUID = UUID(uuidString: id) ?? UUID()
+        let methodId = UUID(stableFrom: id)
         // Flat per-post pay when set; otherwise fall back to the CPM rate so the
         // card never shows "$0" for a real (pay-per-view) opportunity.
         let flat = budget_per_creator ?? 0

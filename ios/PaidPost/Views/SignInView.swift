@@ -91,8 +91,12 @@ struct SignInView: View {
             Task { await handleApple() }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "apple.logo")
-                Text("Continue with Apple").font(.system(size: 17, weight: .semibold))
+                if store.authInProgress {
+                    ProgressView().tint(.white)
+                } else {
+                    Image(systemName: "apple.logo")
+                    Text("Continue with Apple").font(.system(size: 17, weight: .semibold))
+                }
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
@@ -102,14 +106,19 @@ struct SignInView: View {
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.stroke, lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .disabled(store.authInProgress)
 
         // Continue with Google.
         Button {
             Task { await handleGoogle() }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "g.circle.fill")
-                Text("Continue with Google").font(.system(size: 17, weight: .semibold))
+                if store.authInProgress {
+                    ProgressView().tint(Theme.textPrimary)
+                } else {
+                    Image(systemName: "g.circle.fill")
+                    Text("Continue with Google").font(.system(size: 17, weight: .semibold))
+                }
             }
             .foregroundStyle(Theme.textPrimary)
             .frame(maxWidth: .infinity)
@@ -119,6 +128,7 @@ struct SignInView: View {
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.stroke, lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .disabled(store.authInProgress)
     }
 
     private func handleApple() async {
@@ -133,10 +143,14 @@ struct SignInView: View {
     }
 
     private func handleGoogle() async {
-        // Google Sign-In SDK wiring is pending (needs the GoogleSignIn package +
-        // iOS client id). Until then, surface a clear message instead of failing
-        // silently. Replace this body with the GIDSignIn flow once the SDK is added.
-        store.authError = "Google sign-in is being set up. Please use Apple or email for now."
+        do {
+            let idToken = try await GoogleSignInHelper.signIn()
+            _ = await store.signInWithIdToken(provider: .google, idToken: idToken)
+        } catch is CancellationError {
+            // user cancelled — no-op
+        } catch {
+            store.authError = error.localizedDescription
+        }
     }
 
     private var emailField: some View {
