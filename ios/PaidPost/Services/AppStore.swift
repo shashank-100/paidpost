@@ -89,11 +89,14 @@ final class AppStore {
         authInProgress = true; authError = nil
         defer { authInProgress = false }
 
-        #if DEBUG
         // App Review path: the reviewer signs in with the fixed test account.
         // That mailbox can't receive a live OTP, so route it through the
         // backend's review bypass instead of Supabase OTP verification.
-        // DEBUG-only so the bypass and its credentials never ship in release.
+        //
+        // This ships in release builds so the reviewer can sign in. It is safe
+        // because the backend gates `auth/test-bypass` behind
+        // `APPLE_REVIEW_BYPASS_ENABLED` — keep that flag ON during review and
+        // turn it OFF afterward to disable the path entirely.
         if email.lowercased() == APIConfig.TestAccount.email.lowercased(),
            code == APIConfig.TestAccount.code {
             do {
@@ -107,7 +110,6 @@ final class AppStore {
                 return false
             }
         }
-        #endif
 
         do {
             let session = try await AuthAPI.verifyCode(email: email, code: code)

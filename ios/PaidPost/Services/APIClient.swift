@@ -156,12 +156,13 @@ actor APIClient {
 
     // MARK: - Auth
 
-    #if DEBUG
     /// Authenticates with the Apple-review bypass route and persists the
     /// session, exactly like a normal sign-in. Requires
     /// `APPLE_REVIEW_BYPASS_ENABLED=true` on the backend.
-    /// DEBUG-only so this code path and the test credentials never ship in a
-    /// release build.
+    ///
+    /// Ships in release builds so the App Store reviewer can sign in. Safe
+    /// because the backend gates the route via `APPLE_REVIEW_BYPASS_ENABLED`
+    /// (keep ON during review, OFF afterward) — see `APIConfig.TestAccount`.
     @discardableResult
     func authenticateTestBypass() async throws -> String {
         struct Body: Encodable { let email: String; let code: String }
@@ -185,7 +186,6 @@ actor APIClient {
         setSession(session)
         return response.access_token
     }
-    #endif
 
     // MARK: - Requests
 
